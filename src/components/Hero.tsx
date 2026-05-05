@@ -10,7 +10,7 @@ export default function Hero() {
 
       <div className="relative max-w-7xl mx-auto px-4 sm:px-6">
         {/* Wood-frame container */}
-        <div className="menu-frame-shadow relative border-[3px] sm:border-4 border-wood-dark/80 rounded-2xl bg-[#EDE0CC]/85 backdrop-blur-sm p-6 sm:p-10">
+        <div className="menu-frame-shadow relative border-[3px] sm:border-4 border-wood-dark/80 rounded-2xl bg-[#EDE0CC] p-6 sm:p-10">
           {/* Inner gold border */}
           <div className="absolute inset-2 border border-gold/40 rounded-xl pointer-events-none" />
 

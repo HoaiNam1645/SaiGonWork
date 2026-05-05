@@ -37,60 +37,54 @@ body {
 .menu-page-bg {
   position: relative;
   isolation: isolate;
+  /* Single radial gradient — pre-blended cream→ochre with built-in highlight */
   background:
-    /* Bright glow center-upper (where light "shines through") */
-    radial-gradient(700px 450px at 45% 40%, rgba(255, 250, 230, 0.95), rgba(255, 246, 220, 0) 70%),
-    /* Base parchment gradient: pale cream center → ochre edges */
-    radial-gradient(ellipse 130% 100% at 45% 45%, #F5E6BD 0%, #ECD49E 55%, #DCB87C 100%);
+    radial-gradient(ellipse 110% 90% at 45% 38%, #FBF1D2 0%, #F0DAA5 50%, #DCB87C 100%);
   overflow: hidden;
 }
 
-/* Aged paper grain — sparse, very subtle */
-.menu-page-bg::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -2;
-  pointer-events: none;
-  opacity: 0.07;
-  mix-blend-mode: multiply;
-  background-image:
-    radial-gradient(rgba(60, 35, 10, 0.45) 0.5px, transparent 0.5px),
-    radial-gradient(rgba(60, 35, 10, 0.3) 0.4px, transparent 0.4px);
-  background-size: 4px 4px, 7px 7px;
-  background-position: 0 0, 2px 2px;
-}
-
-/* Sumi-e bamboo: top corners only (mountain handled inside Hero) */
+/* Sumi-e bamboo decorations — promoted to GPU layer to avoid scroll repaint */
+.menu-page-bg::before,
 .menu-page-bg::after {
   content: "";
   position: absolute;
-  inset: 0;
-  z-index: -1;
+  top: 0;
+  width: 320px;
+  height: 600px;
   pointer-events: none;
+  z-index: -1;
+  opacity: 0.5;
   background-repeat: no-repeat;
-  background-image:
-    url('/decorations/bamboo-left.svg'),
-    url('/decorations/bamboo-right.svg');
-  background-position:
-    -10px -10px,
-    right -10px top -10px;
-  background-size:
-    320px auto,
-    320px auto;
-  opacity: 0.55;
+  background-size: 320px auto;
+  /* GPU layer */
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.menu-page-bg::before {
+  left: -10px;
+  background-image: url('/decorations/bamboo-left.svg');
+  background-position: top left;
+}
+
+.menu-page-bg::after {
+  right: -10px;
+  background-image: url('/decorations/bamboo-right.svg');
+  background-position: top right;
 }
 
 @media (max-width: 768px) {
+  .menu-page-bg::before,
   .menu-page-bg::after {
-    background-size:
-      170px auto,
-      170px auto;
+    width: 170px;
+    height: 320px;
+    background-size: 170px auto;
     opacity: 0.4;
   }
 }
 
-/* Mountain landscape: positioned inside Hero, below frame, bottom-right */
+/* Mountain landscape: positioned inside Hero, GPU-layered */
 .hero-mountain {
   position: absolute;
   right: 0;
@@ -101,6 +95,9 @@ body {
   z-index: -1;
   background: url('/decorations/mountains.svg') no-repeat right bottom / contain;
   opacity: 0.6;
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 @media (max-width: 768px) {
@@ -108,6 +105,12 @@ body {
     width: 90%;
     opacity: 0.45;
   }
+}
+
+/* Skip rendering off-screen sections until they scroll near viewport */
+main > section:not(:first-of-type) {
+  content-visibility: auto;
+  contain-intrinsic-size: 1px 800px;
 }
 
 /* Soft lifted shadow for the menu frame inside hero */

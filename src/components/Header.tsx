@@ -37,9 +37,10 @@ export default function Header() {
 
   return (
     <header
-      className={`fixed left-0 right-0 z-40 transition-all duration-300 ${
+      style={{ willChange: 'background-color, padding' }}
+      className={`fixed left-0 right-0 z-40 [transition:background-color_300ms,box-shadow_300ms,padding_300ms,top_300ms] ${
         scrolled
-          ? 'top-0 bg-wood-dark/95 backdrop-blur-md shadow-xl py-2'
+          ? 'top-0 bg-wood-dark shadow-xl py-2'
           : 'top-[42px] bg-transparent py-4'
       }`}
     >
@@ -99,7 +100,7 @@ export default function Header() {
       </div>
 
       {mobileOpen && (
-        <div className="md:hidden bg-wood-dark/95 backdrop-blur-md border-t border-gold/20 px-4 py-4">
+        <div className="md:hidden bg-wood-dark border-t border-gold/20 px-4 py-4">
           {[
             { href: '#menu', label: 'Speisekarte' },
             { href: '#popular', label: 'Spezialitäten' },

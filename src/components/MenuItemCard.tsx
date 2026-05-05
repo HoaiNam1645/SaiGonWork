@@ -60,7 +60,7 @@ export default function MenuItemCard({ item }: { item: MenuItem }) {
         </div>
 
         {/* Number badge */}
-        <div className="absolute top-3 right-3 bg-wood-dark/80 backdrop-blur-sm text-gold text-xs font-mono font-semibold px-2.5 py-1 rounded-full">
+        <div className="absolute top-3 right-3 bg-wood-dark/90 text-gold text-xs font-mono font-semibold px-2.5 py-1 rounded-full">
           #{item.number}
         </div>
 
