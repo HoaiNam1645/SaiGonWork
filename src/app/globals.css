@@ -1,0 +1,140 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand colors from Sai Gon Wok menu design */
+  --color-parchment: #EDE0CC;
+  --color-parchment-dark: #D4B896;
+  --color-wood-dark: #3D1F0A;
+  --color-wood: #5C3317;
+  --color-gold: #C9963A;
+  --color-gold-light: #D4A843;
+  --color-amber: #E8650A;
+  --color-ink: #1A0A00;
+  --color-bamboo: #4A5E2A;
+
+  /* Fonts */
+  --font-display: var(--font-playfair), 'Georgia', serif;
+  --font-sans: var(--font-nunito), 'Segoe UI', sans-serif;
+  --font-script: var(--font-caveat), 'Brush Script MT', cursive;
+  --font-marker: var(--font-marker), 'Permanent Marker', cursive;
+}
+
+:root {
+  color-scheme: light;
+}
+
+* {
+  scroll-behavior: smooth;
+}
+
+body {
+  background-color: #EFD9A8;
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+.menu-page-bg {
+  position: relative;
+  isolation: isolate;
+  background:
+    /* Bright glow center-upper (where light "shines through") */
+    radial-gradient(700px 450px at 45% 40%, rgba(255, 250, 230, 0.95), rgba(255, 246, 220, 0) 70%),
+    /* Base parchment gradient: pale cream center → ochre edges */
+    radial-gradient(ellipse 130% 100% at 45% 45%, #F5E6BD 0%, #ECD49E 55%, #DCB87C 100%);
+  overflow: hidden;
+}
+
+/* Aged paper grain — sparse, very subtle */
+.menu-page-bg::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -2;
+  pointer-events: none;
+  opacity: 0.07;
+  mix-blend-mode: multiply;
+  background-image:
+    radial-gradient(rgba(60, 35, 10, 0.45) 0.5px, transparent 0.5px),
+    radial-gradient(rgba(60, 35, 10, 0.3) 0.4px, transparent 0.4px);
+  background-size: 4px 4px, 7px 7px;
+  background-position: 0 0, 2px 2px;
+}
+
+/* Sumi-e bamboo: top corners only (mountain handled inside Hero) */
+.menu-page-bg::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-repeat: no-repeat;
+  background-image:
+    url('/decorations/bamboo-left.svg'),
+    url('/decorations/bamboo-right.svg');
+  background-position:
+    -10px -10px,
+    right -10px top -10px;
+  background-size:
+    320px auto,
+    320px auto;
+  opacity: 0.55;
+}
+
+@media (max-width: 768px) {
+  .menu-page-bg::after {
+    background-size:
+      170px auto,
+      170px auto;
+    opacity: 0.4;
+  }
+}
+
+/* Mountain landscape: positioned inside Hero, below frame, bottom-right */
+.hero-mountain {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: min(720px, 60%);
+  aspect-ratio: 8 / 5;
+  pointer-events: none;
+  z-index: -1;
+  background: url('/decorations/mountains.svg') no-repeat right bottom / contain;
+  opacity: 0.6;
+}
+
+@media (max-width: 768px) {
+  .hero-mountain {
+    width: 90%;
+    opacity: 0.45;
+  }
+}
+
+/* Soft lifted shadow for the menu frame inside hero */
+.menu-frame-shadow {
+  box-shadow:
+    0 30px 60px -20px rgba(60, 35, 10, 0.45),
+    0 12px 25px -10px rgba(60, 35, 10, 0.25),
+    0 2px 4px rgba(60, 35, 10, 0.08);
+}
+
+/* Hide scrollbar for category tabs */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Custom scrollbar for cart */
+.overflow-y-auto::-webkit-scrollbar {
+  width: 4px;
+}
+.overflow-y-auto::-webkit-scrollbar-track {
+  background: transparent;
+}
+.overflow-y-auto::-webkit-scrollbar-thumb {
+  background: #C9963A44;
+  border-radius: 2px;
+}

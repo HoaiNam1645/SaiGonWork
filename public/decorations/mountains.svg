@@ -1,0 +1,134 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" fill="none">
+  <defs>
+    <linearGradient id="peak1" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#3D1F0A" stop-opacity="0.05"/>
+      <stop offset="100%" stop-color="#3D1F0A" stop-opacity="0.18"/>
+    </linearGradient>
+    <linearGradient id="peak2" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#3D1F0A" stop-opacity="0.12"/>
+      <stop offset="100%" stop-color="#3D1F0A" stop-opacity="0.32"/>
+    </linearGradient>
+    <linearGradient id="peak3" x1="0" x2="0" y1="0" y2="1">
+      <stop offset="0%" stop-color="#2A1408" stop-opacity="0.28"/>
+      <stop offset="100%" stop-color="#2A1408" stop-opacity="0.55"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Distant misty range (lightest, far horizon) -->
+  <path d="M 360 270
+           Q 400 230 430 240
+           L 460 215 L 485 245
+           Q 520 195 555 215
+           L 580 195 L 610 230
+           Q 640 200 670 225
+           L 700 205 L 735 235
+           L 770 215 L 800 240
+           L 800 500 L 360 500 Z"
+    fill="url(#peak1)"/>
+
+  <!-- Mid range: smooth rounded peaks -->
+  <path d="M 430 320
+           Q 470 270 500 285
+           L 530 255 L 560 290
+           Q 595 240 630 270
+           L 660 240 L 695 285
+           Q 720 260 760 290
+           L 800 280 L 800 500 L 430 500 Z"
+    fill="url(#peak2)"/>
+
+  <!-- Foreground craggy peaks (Huangshan-style sharp ridges) -->
+  <g fill="url(#peak3)">
+    <!-- Main mountain mass -->
+    <path d="M 520 405
+             L 545 370
+             L 562 388
+             L 580 350
+             L 600 372
+             L 622 320
+             L 645 348
+             L 660 312
+             L 680 340
+             L 700 295
+             L 722 322
+             L 745 285
+             L 760 305
+             L 780 295
+             L 800 318
+             L 800 500
+             L 520 500 Z"/>
+    <!-- Secondary peak cluster left -->
+    <path d="M 470 440
+             L 490 410
+             L 508 428
+             L 525 395
+             L 540 415
+             L 555 405
+             L 570 425
+             L 585 415
+             L 600 432
+             L 600 500
+             L 470 500 Z" opacity="0.85"/>
+  </g>
+
+  <!-- Pine trees on the foreground ridges -->
+  <g fill="#2A1408" opacity="0.78">
+    <!-- Pine cluster on highest peak (right) -->
+    <g transform="translate(745 285) scale(0.9)">
+      <path d="M 0 0 L -3 7 L -6 14 L -3 14 L 0 20 L 3 14 L 6 14 L 3 7 Z"/>
+      <path d="M 9 -2 L 6 6 L 3 14 L 6 14 L 9 22 L 12 14 L 15 14 L 12 6 Z"/>
+      <path d="M 18 2 L 15 10 L 12 18 L 15 18 L 18 24 L 21 18 L 24 18 L 21 10 Z"/>
+      <path d="M -8 4 L -11 12 L -14 20 L -11 20 L -8 26 L -5 20 L -2 20 L -5 12 Z"/>
+    </g>
+    <!-- Pine cluster on middle peak -->
+    <g transform="translate(700 295)">
+      <path d="M 0 0 L -2 6 L -4 12 L -2 12 L 0 17 L 2 12 L 4 12 L 2 6 Z"/>
+      <path d="M 7 3 L 5 9 L 3 15 L 5 15 L 7 19 L 9 15 L 11 15 L 9 9 Z"/>
+      <path d="M -7 5 L -9 11 L -11 17 L -9 17 L -7 21 L -5 17 L -3 17 L -5 11 Z"/>
+    </g>
+    <!-- Pine on left peak -->
+    <g transform="translate(622 320)">
+      <path d="M 0 0 L -2 5 L -4 11 L -2 11 L 0 15 L 2 11 L 4 11 L 2 5 Z"/>
+      <path d="M 6 2 L 4 8 L 2 14 L 4 14 L 6 18 L 8 14 L 10 14 L 8 8 Z"/>
+    </g>
+    <!-- Small pines on lower peaks -->
+    <g transform="translate(580 350)">
+      <path d="M 0 0 L -2 5 L -4 10 L -2 10 L 0 14 L 2 10 L 4 10 L 2 5 Z"/>
+    </g>
+    <g transform="translate(540 415)">
+      <path d="M 0 0 L -1.5 4 L -3 8 L -1.5 8 L 0 11 L 1.5 8 L 3 8 L 1.5 4 Z"/>
+    </g>
+    <g transform="translate(560 405)">
+      <path d="M 0 0 L -2 5 L -4 10 L -2 10 L 0 14 L 2 10 L 4 10 L 2 5 Z"/>
+      <path d="M 5 3 L 3 8 L 1 13 L 3 13 L 5 16 L 7 13 L 9 13 L 7 8 Z"/>
+    </g>
+  </g>
+
+  <!-- Atmospheric mist slivers between mountain layers -->
+  <g fill="#F5E6BD" opacity="0.7">
+    <ellipse cx="600" cy="375" rx="100" ry="5"/>
+    <ellipse cx="710" cy="345" rx="80" ry="4"/>
+    <ellipse cx="500" cy="395" rx="70" ry="4"/>
+    <ellipse cx="780" cy="320" rx="40" ry="3"/>
+  </g>
+
+  <!-- Drifting clouds (very faint) -->
+  <g fill="#F5E6BD" opacity="0.55">
+    <path d="M 460 200 q 30 -8 60 0 q 25 -5 55 4 q -20 8 -50 5 q -25 6 -65 -9 z"/>
+    <path d="M 620 150 q 25 -6 50 0 q 20 -4 45 3 q -18 7 -42 4 q -20 5 -53 -7 z"/>
+  </g>
+
+  <!-- Sun/moon -->
+  <circle cx="510" cy="170" r="32" fill="#C9963A" opacity="0.22"/>
+  <circle cx="510" cy="170" r="32" fill="none" stroke="#3D1F0A" stroke-width="0.6" opacity="0.3"/>
+
+  <!-- Tiny foreground islet floating in mist -->
+  <path d="M 430 460 Q 450 452 475 458 Q 495 450 520 458 L 520 500 L 430 500 Z"
+    fill="#3D1F0A" opacity="0.35"/>
+
+  <!-- Distant birds -->
+  <g stroke="#3D1F0A" stroke-width="1.2" stroke-linecap="round" fill="none" opacity="0.55">
+    <path d="M 380 130 q 4 -5 8 0 q 4 -5 8 0"/>
+    <path d="M 420 105 q 3 -4 6 0 q 3 -4 6 0"/>
+    <path d="M 450 145 q 3 -3 5 0 q 3 -3 5 0"/>
+  </g>
+</svg>
