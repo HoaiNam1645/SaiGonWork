@@ -1,6 +1,10 @@
+'use client'
+
+import { useI18n } from '@/i18n/I18nContext'
 import { MapPinIcon, ClockIcon, TruckIcon, ArrowRightIcon } from './Icons'
 
 export default function ContactSection() {
+  const { t } = useI18n()
   return (
     <section id="contact" className="bg-parchment py-24 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -8,12 +12,12 @@ export default function ContactSection() {
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="h-px w-10 bg-gold/60" />
             <span className="text-gold text-xs tracking-[0.4em] uppercase font-semibold">
-              Besuchen Sie Uns
+              {t('contact.eyebrow')}
             </span>
             <div className="h-px w-10 bg-gold/60" />
           </div>
           <h2 className="font-display text-4xl sm:text-5xl font-bold text-wood-dark">
-            Kontakt & Öffnungszeiten
+            {t('contact.title')}
           </h2>
         </div>
 
@@ -22,11 +26,11 @@ export default function ContactSection() {
             <div className="w-12 h-12 rounded-full bg-gold/10 text-gold flex items-center justify-center mb-5">
               <MapPinIcon className="w-5 h-5" />
             </div>
-            <h3 className="font-display font-bold text-wood-dark text-xl mb-3">Adresse</h3>
+            <h3 className="font-display font-bold text-wood-dark text-xl mb-3">{t('contact.address')}</h3>
             <p className="text-wood/75 leading-relaxed mb-4">
               Kanalstraße 10<br />
               70182 Stuttgart<br />
-              Deutschland
+              {t('contact.address.country')}
             </p>
             <a
               href="https://maps.google.com/?q=Kanalstraße+10,+70182+Stuttgart"
@@ -34,7 +38,7 @@ export default function ContactSection() {
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-gold hover:text-gold-light text-sm font-semibold group"
             >
-              <span>Auf der Karte öffnen</span>
+              <span>{t('contact.openMap')}</span>
               <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-0.5 transition-transform" />
             </a>
           </div>
@@ -43,33 +47,33 @@ export default function ContactSection() {
             <div className="w-12 h-12 rounded-full bg-gold/10 text-gold flex items-center justify-center mb-5">
               <ClockIcon className="w-5 h-5" />
             </div>
-            <h3 className="font-display font-bold text-wood-dark text-xl mb-3">Öffnungszeiten</h3>
+            <h3 className="font-display font-bold text-wood-dark text-xl mb-3">{t('contact.hours.title')}</h3>
             <div className="space-y-2.5 text-wood/75">
               <div className="flex justify-between gap-4">
-                <span className="font-medium">Mo – Sa</span>
+                <span className="font-medium">{t('contact.hours.weekdays')}</span>
                 <span>11:00 – 21:30</span>
               </div>
               <div className="border-t border-gold/15 pt-2.5 flex justify-between gap-4">
-                <span className="font-medium">Sonntag</span>
-                <span className="text-amber font-medium">Geschlossen</span>
+                <span className="font-medium">{t('contact.hours.sunday')}</span>
+                <span className="text-amber font-medium">{t('contact.hours.closed')}</span>
               </div>
             </div>
-            <p className="mt-4 text-xs text-wood/45">Küche schließt 30 Min. vor Feierabend</p>
+            <p className="mt-4 text-xs text-wood/45">{t('contact.hours.note')}</p>
           </div>
 
           <div className="bg-wood-dark border border-gold/30 rounded-3xl p-8 hover:shadow-2xl hover:shadow-gold/10 hover:-translate-y-1 transition-all duration-300">
             <div className="w-12 h-12 rounded-full bg-gold/15 text-gold flex items-center justify-center mb-5">
               <TruckIcon className="w-5 h-5" />
             </div>
-            <h3 className="font-display font-bold text-gold text-xl mb-3">Jetzt Bestellen</h3>
+            <h3 className="font-display font-bold text-gold text-xl mb-3">{t('contact.order.title')}</h3>
             <p className="text-parchment/70 text-sm mb-6 leading-relaxed">
-              Genießen Sie unsere authentischen Gerichte bequem zu Hause oder im Büro — frisch zubereitet und schnell geliefert.
+              {t('contact.order.desc')}
             </p>
             <a
               href="#menu"
               className="inline-flex w-full items-center justify-center gap-2 bg-gold hover:bg-gold-light text-wood-dark font-bold px-6 py-3.5 rounded-full transition-all duration-200 hover:scale-[1.02] active:scale-95 text-sm"
             >
-              <span>Zur Speisekarte</span>
+              <span>{t('contact.order.cta')}</span>
               <ArrowRightIcon className="w-4 h-4" />
             </a>
           </div>

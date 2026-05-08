@@ -1,4 +1,3 @@
-import PromoBanner from '@/components/PromoBanner'
 import Header from '@/components/Header'
 import Hero from '@/components/Hero'
 import FeaturesBar from '@/components/FeaturesBar'
@@ -9,12 +8,10 @@ import AboutSection from '@/components/AboutSection'
 import Testimonials from '@/components/Testimonials'
 import ContactSection from '@/components/ContactSection'
 import Footer from '@/components/Footer'
-import CartDrawer from '@/components/CartDrawer'
 
 export default function HomePage() {
   return (
     <>
-      <PromoBanner />
       <Header />
       <main className="menu-page-bg">
         <Hero />
@@ -27,7 +24,6 @@ export default function HomePage() {
         <ContactSection />
       </main>
       <Footer />
-      <CartDrawer />
     </>
   )
 }

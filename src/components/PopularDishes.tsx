@@ -1,8 +1,12 @@
+'use client'
+
 import Image from 'next/image'
 import { menuCategories } from '@/data/menu'
+import { useI18n } from '@/i18n/I18nContext'
 import { ArrowRightIcon, FlameIcon } from './Icons'
 
 export default function PopularDishes() {
+  const { t } = useI18n()
   const popularItems = menuCategories
     .flatMap((c) => c.items)
     .filter((i) => i.isPopular)
@@ -16,16 +20,16 @@ export default function PopularDishes() {
             <div className="flex items-center gap-3 mb-4">
               <div className="h-px w-10 bg-gold" />
               <span className="text-gold text-xs tracking-[0.4em] uppercase font-semibold">
-                Empfehlung des Hauses
+                {t('popular.eyebrow')}
               </span>
             </div>
             <h2 className="font-display text-4xl sm:text-5xl font-bold text-wood-dark leading-tight">
-              Unsere
-              <span className="text-gold italic"> Spezialitäten</span>
+              {t('popular.title_pre')}
+              <span className="text-gold italic"> {t('popular.title_accent')}</span>
             </h2>
           </div>
           <p className="text-wood/65 max-w-md text-base">
-            Die Lieblingsgerichte unserer Gäste — sorgfältig ausgewählt, mit Liebe zubereitet.
+            {t('popular.subtitle')}
           </p>
         </div>
 
@@ -57,7 +61,7 @@ export default function PopularDishes() {
                 <div className="absolute top-4 left-4">
                   <span className="inline-flex items-center gap-1.5 bg-amber text-white text-xs font-bold px-3 py-1.5 rounded-full shadow-lg">
                     <FlameIcon className="w-3 h-3" />
-                    Beliebt
+                    {t('tag.popular')}
                   </span>
                 </div>
 
@@ -73,10 +77,10 @@ export default function PopularDishes() {
                   )}
                   <div className="flex items-center justify-between">
                     <span className="text-gold font-display font-bold text-xl">
-                      ab {minPrice.toFixed(2).replace('.', ',')} €
+                      {t('popular.from')} {minPrice.toFixed(2).replace('.', ',')} €
                     </span>
                     <span className="inline-flex items-center gap-1 text-parchment/80 text-xs group-hover:text-gold group-hover:gap-2 transition-all">
-                      <span>Bestellen</span>
+                      <span>{t('popular.order')}</span>
                       <ArrowRightIcon className="w-3 h-3" />
                     </span>
                   </div>

@@ -1,8 +1,12 @@
+'use client'
+
 import Image from 'next/image'
 import { restaurantInfo } from '@/data/menu'
+import { useI18n } from '@/i18n/I18nContext'
 import { MapPinIcon, ClockIcon, ArrowRightIcon } from './Icons'
 
 export default function Hero() {
+  const { t } = useI18n()
   return (
     <section className="relative pt-24 sm:pt-28 pb-16 overflow-hidden">
       {/* Sumi-e mountain landscape — bottom right of hero */}
@@ -38,7 +42,7 @@ export default function Hero() {
               {/* MENU label */}
               <div className="inline-flex flex-col items-center mb-4 lg:mb-6">
                 <span className="font-marker text-wood-dark text-2xl sm:text-3xl tracking-wider">
-                  MENU
+                  {t('hero.menu_label')}
                 </span>
                 <svg viewBox="0 0 60 30" className="w-12 h-6 text-gold mt-1" fill="currentColor" aria-hidden>
                   <path d="M30 5 C25 8 22 12 22 16 C22 22 26 25 30 25 C34 25 38 22 38 16 C38 12 35 8 30 5 Z M28 12 L32 12 M26 17 L34 17" stroke="currentColor" strokeWidth="1.5" fill="none" />
@@ -55,7 +59,7 @@ export default function Hero() {
 
               {/* Ich Bin Da + scooter */}
               <div className="flex items-center justify-center lg:justify-start gap-3 mb-2">
-                <span className="font-script text-wood-dark text-3xl sm:text-4xl">Ich Bin Da</span>
+                <span className="font-script text-wood-dark text-3xl sm:text-4xl">{t('hero.tagline')}</span>
                 <svg className="w-10 h-10 text-wood/70" viewBox="0 0 64 64" fill="none" stroke="currentColor" strokeWidth="2.5" aria-hidden>
                   <circle cx="16" cy="48" r="6" />
                   <circle cx="48" cy="48" r="6" />
@@ -66,14 +70,14 @@ export default function Hero() {
               </div>
 
               <p className="font-display text-wood-dark/85 text-xl sm:text-2xl mb-4 italic">
-                Herzlich Willkommen…
+                {t('hero.welcome')}
               </p>
 
               <p className="font-script text-gold text-4xl sm:text-5xl mb-2 leading-none">
-                Guten Appetit
+                {t('hero.appetit')}
               </p>
               <p className="text-wood/70 text-sm sm:text-base mb-8">
-                Wir bedanken uns für Ihren Besuch
+                {t('hero.thanks')}
               </p>
 
               {/* CTAs */}
@@ -82,14 +86,14 @@ export default function Hero() {
                   href="#menu"
                   className="group inline-flex items-center justify-center gap-2 bg-wood-dark hover:bg-wood text-gold font-bold px-7 py-3.5 rounded-full text-sm sm:text-base transition-all duration-200 hover:scale-105 active:scale-95 shadow-xl"
                 >
-                  <span>Speisekarte ansehen</span>
+                  <span>{t('hero.cta_menu')}</span>
                   <ArrowRightIcon className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
                 </a>
                 <a
                   href="#contact"
                   className="inline-flex items-center justify-center gap-2 bg-gold hover:bg-gold-light text-wood-dark font-bold px-7 py-3.5 rounded-full text-sm sm:text-base transition-all"
                 >
-                  Tisch reservieren
+                  {t('hero.cta_reserve')}
                 </a>
               </div>
             </div>
@@ -108,7 +112,7 @@ export default function Hero() {
               </div>
               {/* Stamp/badge */}
               <div className="absolute -top-3 -right-3 sm:-top-4 sm:-right-4 bg-amber text-white rounded-full w-20 h-20 sm:w-24 sm:h-24 flex flex-col items-center justify-center shadow-2xl rotate-[-12deg] border-4 border-parchment">
-                <span className="font-marker text-sm sm:text-base leading-none">SEIT</span>
+                <span className="font-marker text-sm sm:text-base leading-none">{t('hero.since')}</span>
                 <span className="font-marker text-xl sm:text-2xl leading-none mt-1">2014</span>
               </div>
             </div>

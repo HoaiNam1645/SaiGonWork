@@ -31,4 +31,34 @@ export interface CartItem {
   variantLabel?: string
   price: number
   quantity: number
+  image?: string
+}
+
+export type OrderStatus = 'placed' | 'preparing' | 'shipping' | 'delivered' | 'cancelled'
+
+export interface OrderItem {
+  name: string
+  variantLabel?: string
+  price: number
+  quantity: number
+  image?: string
+}
+
+export interface Order {
+  id: string
+  code: string
+  createdAt: string
+  status: OrderStatus
+  items: OrderItem[]
+  subtotal: number
+  shippingFee: number
+  total: number
+  paymentMethod: string
+  customer: {
+    name: string
+    phone: string
+    address: string
+  }
+  note?: string
+  cancelReason?: string
 }

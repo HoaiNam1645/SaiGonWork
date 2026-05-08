@@ -1,27 +1,17 @@
+'use client'
+
+import { useI18n } from '@/i18n/I18nContext'
+import type { TKey } from '@/i18n/dictionary'
 import { StarIcon, QuoteIcon } from './Icons'
 
-const reviews = [
-  {
-    name: 'Anna M.',
-    rating: 5,
-    text: 'Die beste Pho in Stuttgart! Die Brühe schmeckt einfach unglaublich authentisch und das Personal ist super freundlich. Wir kommen immer wieder.',
-    source: 'Google Bewertung',
-  },
-  {
-    name: 'Michael K.',
-    rating: 5,
-    text: 'Top Qualität, faire Preise und große Portionen. Die Sommerrollen sind ein absolutes Muss. Vegane Optionen sind auch hervorragend.',
-    source: 'Google Bewertung',
-  },
-  {
-    name: 'Linh T.',
-    rating: 5,
-    text: 'Endlich vietnamesisches Essen wie zu Hause! Bun Bo Nam Bo schmeckt wie in Saigon. Sehr empfehlenswert für alle Liebhaber asiatischer Küche.',
-    source: 'Google Bewertung',
-  },
+const reviews: { name: string; rating: number; textKey: TKey }[] = [
+  { name: 'Anna M.',    rating: 5, textKey: 'testimonials.review1.text' },
+  { name: 'Michael K.', rating: 5, textKey: 'testimonials.review2.text' },
+  { name: 'Linh T.',    rating: 5, textKey: 'testimonials.review3.text' },
 ]
 
 export default function Testimonials() {
+  const { t } = useI18n()
   return (
     <section className="bg-wood-dark py-24 relative overflow-hidden">
       <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-gold/40 to-transparent" />
@@ -32,13 +22,13 @@ export default function Testimonials() {
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="h-px w-10 bg-gold/60" />
             <span className="text-gold text-xs tracking-[0.4em] uppercase font-semibold">
-              Was unsere Gäste sagen
+              {t('testimonials.eyebrow')}
             </span>
             <div className="h-px w-10 bg-gold/60" />
           </div>
           <h2 className="font-display text-4xl sm:text-5xl font-bold text-parchment leading-tight">
-            Bewertungen unserer
-            <span className="block text-gold italic">zufriedenen Gäste</span>
+            {t('testimonials.title_pre')}
+            <span className="block text-gold italic">{t('testimonials.title_accent')}</span>
           </h2>
         </div>
 
@@ -57,12 +47,12 @@ export default function Testimonials() {
               </div>
 
               <p className="text-parchment/85 leading-relaxed mb-5 text-sm">
-                {review.text}
+                {t(review.textKey)}
               </p>
 
               <div className="border-t border-gold/15 pt-4">
                 <div className="font-display font-bold text-gold">{review.name}</div>
-                <div className="text-parchment/50 text-xs mt-0.5">{review.source}</div>
+                <div className="text-parchment/50 text-xs mt-0.5">{t('testimonials.source')}</div>
               </div>
             </div>
           ))}

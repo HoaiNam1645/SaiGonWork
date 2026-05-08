@@ -1,7 +1,11 @@
+'use client'
+
 import Image from 'next/image'
 import { galleryImages } from '@/data/menu'
+import { useI18n } from '@/i18n/I18nContext'
 
 export default function Gallery() {
+  const { t } = useI18n()
   return (
     <section className="bg-parchment py-24">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -9,13 +13,13 @@ export default function Gallery() {
           <div className="flex items-center justify-center gap-3 mb-4">
             <div className="h-px w-10 bg-gold/60" />
             <span className="text-gold text-xs tracking-[0.4em] uppercase font-semibold">
-              Galerie
+              {t('gallery.eyebrow')}
             </span>
             <div className="h-px w-10 bg-gold/60" />
           </div>
           <h2 className="font-display text-4xl sm:text-5xl font-bold text-wood-dark leading-tight">
-            Eindrücke aus unserer
-            <span className="block text-gold italic">Küche</span>
+            {t('gallery.title_pre')}
+            <span className="block text-gold italic">{t('gallery.title_accent')}</span>
           </h2>
         </div>
 
@@ -29,7 +33,7 @@ export default function Gallery() {
             >
               <Image
                 src={src}
-                alt={`Gerichte bei Sai Gon Wok ${idx + 1}`}
+                alt={`${t('gallery.alt')} ${idx + 1}`}
                 fill
                 sizes="(max-width: 768px) 50vw, 25vw"
                 className="object-cover group-hover:scale-110 transition-transform duration-700"

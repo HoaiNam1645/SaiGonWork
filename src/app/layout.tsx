@@ -2,7 +2,10 @@ import type { Metadata } from 'next'
 import { Playfair_Display, Nunito, Caveat, Permanent_Marker } from 'next/font/google'
 import './globals.css'
 import { CartProvider } from '@/context/CartContext'
+import { I18nProvider } from '@/i18n/I18nContext'
 import { menuCategories, restaurantInfo } from '@/data/menu'
+import PromoBanner from '@/components/PromoBanner'
+import CartDrawer from '@/components/CartDrawer'
 
 const playfair = Playfair_Display({
   variable: '--font-playfair',
@@ -127,7 +130,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
       </head>
       <body className="min-h-screen flex flex-col">
-        <CartProvider>{children}</CartProvider>
+        <I18nProvider>
+          <CartProvider>
+            <PromoBanner />
+            {children}
+            <CartDrawer />
+          </CartProvider>
+        </I18nProvider>
       </body>
     </html>
   )

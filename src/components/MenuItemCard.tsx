@@ -3,11 +3,13 @@
 import { useState } from 'react'
 import Image from 'next/image'
 import { useCart } from '@/context/CartContext'
+import { useI18n } from '@/i18n/I18nContext'
 import type { MenuItem } from '@/types'
 import { PlusIcon, FlameIcon, LeafIcon } from './Icons'
 
 export default function MenuItemCard({ item }: { item: MenuItem }) {
   const { addItem } = useCart()
+  const { t } = useI18n()
   const [selectedVariant, setSelectedVariant] = useState(0)
 
   const hasVariants = item.variants && item.variants.length > 0
@@ -20,6 +22,7 @@ export default function MenuItemCard({ item }: { item: MenuItem }) {
       name: item.name,
       variantLabel: activeVariant?.label,
       price: displayPrice!,
+      image: item.image,
     })
   }
 
@@ -42,19 +45,19 @@ export default function MenuItemCard({ item }: { item: MenuItem }) {
           {item.isPopular && (
             <span className="inline-flex items-center gap-1 bg-amber text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-lg">
               <FlameIcon className="w-3 h-3" />
-              Beliebt
+              {t('tag.popular')}
             </span>
           )}
           {item.isVegan && (
             <span className="inline-flex items-center gap-1 bg-bamboo text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-lg">
               <LeafIcon className="w-3 h-3" />
-              Vegan
+              {t('tag.vegan')}
             </span>
           )}
           {!item.isVegan && item.isVegetarian && (
             <span className="inline-flex items-center gap-1 bg-bamboo/80 text-white text-[11px] font-bold px-2.5 py-1 rounded-full shadow-lg">
               <LeafIcon className="w-3 h-3" />
-              Vegetarisch
+              {t('tag.vegetarian')}
             </span>
           )}
         </div>
@@ -67,7 +70,7 @@ export default function MenuItemCard({ item }: { item: MenuItem }) {
         {/* Add button overlay */}
         <button
           onClick={handleAdd}
-          aria-label={`${item.name} in den Warenkorb`}
+          aria-label={`${item.name} — ${t('menu.add_to_cart_aria_suffix')}`}
           className="absolute bottom-3 right-3 w-11 h-11 rounded-full bg-gold hover:bg-gold-light text-wood-dark flex items-center justify-center shadow-xl transition-all duration-200 hover:scale-110 active:scale-95 opacity-0 group-hover:opacity-100 translate-y-2 group-hover:translate-y-0"
         >
           <PlusIcon className="w-5 h-5" strokeWidth={2.5} />
@@ -119,7 +122,7 @@ export default function MenuItemCard({ item }: { item: MenuItem }) {
           className="md:hidden w-full bg-wood-dark hover:bg-wood text-gold font-semibold text-sm py-2.5 rounded-xl transition-all flex items-center justify-center gap-2 active:scale-95 mt-auto"
         >
           <PlusIcon className="w-4 h-4" />
-          <span>In den Warenkorb</span>
+          <span>{t('menu.add_to_cart')}</span>
         </button>
       </div>
     </article>
