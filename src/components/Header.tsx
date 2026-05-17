@@ -136,22 +136,39 @@ export default function Header() {
                 )}
               </button>
 
-              {/* Login icon */}
+              {/* Track order (guest lookup) — icon only */}
               <Link
-                href="/auth/login"
-                aria-label={t('header.signin_aria')}
-                className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full transition-colors ${
+                href="/orders/lookup"
+                aria-label={t('header.track_order')}
+                title={t('header.track_order')}
+                className={`hidden sm:inline-flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
                   scrolled
                     ? 'text-parchment/85 hover:text-gold hover:bg-gold/10'
                     : 'text-wood-dark/85 hover:text-wood-dark hover:bg-wood-dark/[0.06]'
                 }`}
               >
-                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M21 21l-4.3-4.3" />
+                </svg>
+              </Link>
+
+              {/* Sign in — icon only */}
+              <Link
+                href="/auth/login"
+                aria-label={t('header.signin')}
+                title={t('header.signin')}
+                className={`hidden sm:inline-flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+                  scrolled
+                    ? 'text-parchment/85 hover:text-gold hover:bg-gold/10'
+                    : 'text-wood-dark/85 hover:text-wood-dark hover:bg-wood-dark/[0.06]'
+                }`}
+              >
+                <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
                   <polyline points="10 17 15 12 10 7" />
                   <line x1="15" y1="12" x2="3" y2="12" />
                 </svg>
-                <span className="text-sm font-medium tracking-wide">{t('header.signin')}</span>
               </Link>
             </>
           )}
@@ -206,18 +223,31 @@ export default function Header() {
               </Link>
             </>
           ) : (
-            <Link
-              href="/auth/login"
-              onClick={() => setMobileOpen(false)}
-              className="flex items-center gap-2 text-parchment/80 hover:text-gold py-3 border-b border-gold/10 transition-colors"
-            >
-              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
-                <polyline points="10 17 15 12 10 7" />
-                <line x1="15" y1="12" x2="3" y2="12" />
-              </svg>
-              {t('header.signin')}
-            </Link>
+            <>
+              <Link
+                href="/orders/lookup"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 text-parchment/80 hover:text-gold py-3 border-b border-gold/10 transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="11" cy="11" r="7" />
+                  <path d="M21 21l-4.3-4.3" />
+                </svg>
+                {t('header.track_order')}
+              </Link>
+              <Link
+                href="/auth/login"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 text-parchment/80 hover:text-gold py-3 border-b border-gold/10 transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+                {t('header.signin')}
+              </Link>
+            </>
           )}
 
           {/* Language toggle (mobile) */}

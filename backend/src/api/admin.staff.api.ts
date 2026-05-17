@@ -6,6 +6,9 @@ import { BadRequest, Conflict, Forbidden, NotFound } from '@/lib/errors'
 import { generateTempPassword, hashPassword } from '@/lib/passwords'
 import { logAuditAsync } from '@/lib/auditLog'
 import { clientIp } from '@/lib/request'
+import { sendMail } from '@/lib/mailer'
+import { renderAccountDeactivatedEmail, renderAccountReactivatedEmail } from '@/lib/emailTemplates'
+import { detectLocale } from '@/i18n'
 
 // =====================================================================
 // Schemas
@@ -40,48 +43,58 @@ const changeRoleSchema = z.object({
   role: z.enum(['customer', 'staff', 'admin']),
 })
 
+const deactivateSchema = z.object({
+  reason: z.string().trim().min(3, 'validation.reason_too_short').max(500, 'validation.reason_too_long'),
+})
+
 // =====================================================================
 // Helpers
 // =====================================================================
 
 const selectFields = {
-  id:               true,
-  email:            true,
-  fullName:         true,
-  phone:            true,
-  role:             true,
-  isActive:         true,
-  emailVerifiedAt:  true,
-  lastLoginAt:      true,
-  createdAt:        true,
-  updatedAt:        true,
+  id:                  true,
+  email:               true,
+  fullName:            true,
+  phone:               true,
+  role:                true,
+  isActive:            true,
+  deactivatedAt:       true,
+  deactivationReason:  true,
+  emailVerifiedAt:     true,
+  lastLoginAt:         true,
+  createdAt:           true,
+  updatedAt:           true,
 } as const
 
 type StaffRow = {
-  id:              bigint
-  email:           string
-  fullName:        string
-  phone:           string | null
-  role:            string
-  isActive:        boolean
-  emailVerifiedAt: Date | null
-  lastLoginAt:     Date | null
-  createdAt:       Date
-  updatedAt:       Date
+  id:                  bigint
+  email:               string
+  fullName:            string
+  phone:               string | null
+  role:                string
+  isActive:            boolean
+  deactivatedAt:       Date | null
+  deactivationReason:  string | null
+  emailVerifiedAt:     Date | null
+  lastLoginAt:         Date | null
+  createdAt:           Date
+  updatedAt:           Date
 }
 
 function shape(u: StaffRow) {
   return {
-    id:              u.id.toString(),
-    email:           u.email,
-    fullName:        u.fullName,
-    phone:           u.phone,
-    role:            u.role,
-    isActive:        u.isActive,
-    emailVerifiedAt: u.emailVerifiedAt?.toISOString() ?? null,
-    lastLoginAt:     u.lastLoginAt?.toISOString()     ?? null,
-    createdAt:       u.createdAt.toISOString(),
-    updatedAt:       u.updatedAt.toISOString(),
+    id:                  u.id.toString(),
+    email:               u.email,
+    fullName:            u.fullName,
+    phone:               u.phone,
+    role:                u.role,
+    isActive:            u.isActive,
+    deactivatedAt:       u.deactivatedAt?.toISOString() ?? null,
+    deactivationReason:  u.deactivationReason ?? null,
+    emailVerifiedAt:     u.emailVerifiedAt?.toISOString() ?? null,
+    lastLoginAt:         u.lastLoginAt?.toISOString()     ?? null,
+    createdAt:           u.createdAt.toISOString(),
+    updatedAt:           u.updatedAt.toISOString(),
   }
 }
 
@@ -272,6 +285,8 @@ export async function deactivate(req: Request, res: Response) {
     throw Forbidden('user.cannot_deactivate_self', 'CANNOT_DEACTIVATE_SELF')
   }
 
+  const { reason } = deactivateSchema.parse(req.body)
+
   const target = await prisma.user.findUnique({ where: { id } })
   if (!target) throw NotFound('user.not_found')
 
@@ -287,7 +302,11 @@ export async function deactivate(req: Request, res: Response) {
 
   const updated = await prisma.user.update({
     where:  { id },
-    data:   { isActive: false },
+    data:   {
+      isActive:           false,
+      deactivatedAt:      new Date(),
+      deactivationReason: reason,
+    },
     select: selectFields,
   })
 
@@ -297,8 +316,19 @@ export async function deactivate(req: Request, res: Response) {
     entityId:   id,
     actorId,
     actorRole:  req.user!.role,
+    diff:       { reason },
     ipAddress:  clientIp(req),
   })
+
+  void (async () => {
+    try {
+      const locale = detectLocale(req)
+      const mail = renderAccountDeactivatedEmail(locale, { name: target.fullName, reason })
+      await sendMail({ to: target.email, ...mail })
+    } catch (err) {
+      console.error('[deactivateStaff] mail send failed', err)
+    }
+  })()
 
   res.json({ staff: shape(updated) })
 }
@@ -321,7 +351,11 @@ export async function activate(req: Request, res: Response) {
 
   const updated = await prisma.user.update({
     where:  { id },
-    data:   { isActive: true },
+    data:   {
+      isActive:           true,
+      deactivatedAt:      null,
+      deactivationReason: null,
+    },
     select: selectFields,
   })
 
@@ -333,6 +367,16 @@ export async function activate(req: Request, res: Response) {
     actorRole:  req.user!.role,
     ipAddress:  clientIp(req),
   })
+
+  void (async () => {
+    try {
+      const locale = detectLocale(req)
+      const mail = renderAccountReactivatedEmail(locale, { name: target.fullName })
+      await sendMail({ to: target.email, ...mail })
+    } catch (err) {
+      console.error('[activateStaff] mail send failed', err)
+    }
+  })()
 
   res.json({ staff: shape(updated) })
 }

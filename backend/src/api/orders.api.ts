@@ -619,15 +619,55 @@ export async function getByCode(req: Request, res: Response) {
   const role     = req.user?.role
   const guestEm  = req.guestOtp?.email
   const guestOc  = req.guestOtp?.orderCode
+  const lookupEm = req.guestLookup?.email
 
   const allowed =
     (role === 'staff' || role === 'admin')                                       ||
     (order.userId != null && userId != null && order.userId === userId)          ||
-    (guestEm && guestOc && guestOc === order.code && guestEm === order.contactEmail)
+    (guestEm && guestOc && guestOc === order.code && guestEm === order.contactEmail) ||
+    (lookupEm && lookupEm === order.contactEmail)
 
   if (!allowed) throw Forbidden('order.no_access', 'NO_ACCESS')
 
   res.json({ order: shapeOrder(order, order.items) })
+}
+
+/**
+ * POST /api/orders/lookup/check — kiểm tra email này có đơn nào không TRƯỚC khi
+ * gửi OTP, để guest không phải verify rồi mới nhận thông báo "không có đơn".
+ *
+ * Có rate-limit per-IP (lookupCheckLimiter) để chống enumerate hàng loạt.
+ * Chỉ trả `{ hasOrders: boolean }` — không leak count/info đơn cụ thể.
+ */
+const lookupCheckSchema = z.object({
+  email: z.string().email().toLowerCase(),
+})
+
+export async function lookupCheck(req: Request, res: Response) {
+  const { email } = lookupCheckSchema.parse(req.body)
+  const found = await prisma.order.findFirst({
+    where:  { contactEmail: email },
+    select: { id: true },
+  })
+  res.json({ hasOrders: !!found })
+}
+
+/**
+ * GET /api/orders/lookup — guest tra cứu list đơn của email mình (cần lookup token
+ * từ /otp/verify purpose='order_lookup'). KHÔNG cần JWT customer.
+ *
+ * Bảo mật: chỉ trả những đơn `contactEmail = email trong token`. Không enumerate
+ * theo SĐT/tên vì sẽ thành kênh dò địa chỉ người khác.
+ */
+export async function listByLookup(req: Request, res: Response) {
+  const email = req.guestLookup!.email
+  const orders = await prisma.order.findMany({
+    where:   { contactEmail: email },
+    orderBy: { createdAt: 'desc' },
+    take:    50,
+    include: { items: { orderBy: { id: 'asc' } } },
+  })
+  res.json({ orders: orders.map(o => shapeOrder(o, o.items)) })
 }
 
 export async function listMine(req: Request, res: Response) {

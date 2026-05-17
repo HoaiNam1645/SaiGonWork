@@ -17,16 +17,18 @@ import { api, ApiError } from '@/lib/api'
 type StaffRole = 'staff' | 'admin'
 
 interface Staff {
-  id:              string
-  email:           string
-  fullName:        string
-  phone:           string | null
-  role:            string  // 'customer' | 'staff' | 'admin'
-  isActive:        boolean
-  emailVerifiedAt: string | null
-  lastLoginAt:     string | null
-  createdAt:       string
-  updatedAt:       string
+  id:                 string
+  email:              string
+  fullName:           string
+  phone:              string | null
+  role:               string  // 'customer' | 'staff' | 'admin'
+  isActive:           boolean
+  deactivatedAt:      string | null
+  deactivationReason: string | null
+  emailVerifiedAt:    string | null
+  lastLoginAt:        string | null
+  createdAt:          string
+  updatedAt:          string
 }
 
 interface ListResponse {
@@ -300,7 +302,10 @@ function StaffRowItem({ s, isMe, locale, t, onEdit, onChangeRole, onActivate, on
         </span>
       </TableCell>
       <TableCell className="px-5 py-4">
-        <span className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${s.isActive ? 'text-success-600' : 'text-gray-400'}`}>
+        <span
+          className={`inline-flex items-center gap-1.5 text-[11px] font-medium ${s.isActive ? 'text-success-600' : 'text-gray-400'} ${!s.isActive && s.deactivationReason ? 'cursor-help underline decoration-dotted' : ''}`}
+          title={!s.isActive && s.deactivationReason ? `${t('admin.customers.deactivation.reason_label')} ${s.deactivationReason}` : undefined}
+        >
           <span className={`w-1.5 h-1.5 rounded-full ${s.isActive ? 'bg-success-500' : 'bg-gray-400'}`} />
           {t(s.isActive ? 'admin.staff.active' : 'admin.staff.inactive')}
         </span>
@@ -604,21 +609,30 @@ function ConfirmActionModal({
   onDone:  (password?: string) => void | Promise<void>
 }) {
   const { t } = useI18n()
-  const [busy, setBusy] = useState(false)
-  const [err,  setErr]  = useState<string | null>(null)
+  const [busy,   setBusy]   = useState(false)
+  const [err,    setErr]    = useState<string | null>(null)
+  const [reason, setReason] = useState('')
 
   const titleKey   = `admin.staff.${kind === 'reset_pw' ? 'reset_pw' : kind}.title` as const
   const bodyKey    = `admin.staff.${kind === 'reset_pw' ? 'reset_pw' : kind}.body`  as const
 
+  const danger      = kind === 'deactivate'
+  const needsReason = kind === 'deactivate'
+  const reasonTrim  = reason.trim()
+  const canSubmit   = !busy && (!needsReason || reasonTrim.length >= 3)
+
   async function submit() {
+    if (!canSubmit) return
     setBusy(true); setErr(null)
     try {
       if (kind === 'reset_pw') {
         const res = await api<{ tempPassword: string }>(`/admin/staff/${staff.id}/reset-password`, { method: 'POST' })
         void onDone(res.tempPassword)
+      } else if (kind === 'deactivate') {
+        await api(`/admin/staff/${staff.id}/deactivate`, { method: 'POST', body: { reason: reasonTrim } })
+        void onDone()
       } else {
-        const ep = kind === 'deactivate' ? 'deactivate' : 'activate'
-        await api(`/admin/staff/${staff.id}/${ep}`, { method: 'POST' })
+        await api(`/admin/staff/${staff.id}/activate`, { method: 'POST' })
         void onDone()
       }
     } catch (e) {
@@ -627,8 +641,6 @@ function ConfirmActionModal({
       setBusy(false)
     }
   }
-
-  const danger = kind === 'deactivate'
 
   return (
     <ModalShell
@@ -642,8 +654,8 @@ function ConfirmActionModal({
           <button
             type="button"
             onClick={submit}
-            disabled={busy}
-            className={`text-sm font-medium px-4 py-2 rounded-lg text-white disabled:opacity-60 ${danger ? 'bg-error-500 hover:bg-error-600' : 'bg-brand-500 hover:bg-brand-600'}`}
+            disabled={!canSubmit}
+            className={`text-sm font-medium px-4 py-2 rounded-lg text-white disabled:opacity-60 disabled:cursor-not-allowed ${danger ? 'bg-error-500 hover:bg-error-600' : 'bg-brand-500 hover:bg-brand-600'}`}
           >
             {t(titleKey)}
           </button>
@@ -651,6 +663,28 @@ function ConfirmActionModal({
       }
     >
       <p className="text-sm text-gray-600">{t(bodyKey)}</p>
+      {needsReason && (
+        <div className="mt-4">
+          <label className="block">
+            <span className="block text-[11px] font-medium uppercase tracking-wide text-gray-500 mb-1.5">
+              {t('admin.customers.deactivation.reason_label')}
+            </span>
+            <textarea
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              rows={3}
+              maxLength={500}
+              autoFocus
+              placeholder={t('admin.customers.deactivation.reason_ph')}
+              className="w-full px-3 py-2 rounded-lg border border-gray-200 text-sm text-gray-800 placeholder:text-gray-400 outline-none focus:border-error-500 focus:ring-2 focus:ring-error-500/15 transition resize-y"
+            />
+          </label>
+          <div className="flex items-center justify-between mt-1">
+            <p className="text-[11px] text-gray-500">{t('admin.customers.deactivation.email_notice')}</p>
+            <p className="text-[11px] text-gray-400 tabular-nums">{reasonTrim.length}/500</p>
+          </div>
+        </div>
+      )}
       {err && <div className="mt-3 rounded-lg bg-error-50 text-error-600 text-xs px-3 py-2 border border-error-100">{err}</div>}
     </ModalShell>
   )

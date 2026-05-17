@@ -30,6 +30,8 @@ model User {
   role            Role      @default(customer)
   emailVerifiedAt DateTime? @map("email_verified_at")
   isActive        Boolean   @default(true) @map("is_active")
+  deactivatedAt   DateTime? @map("deactivated_at")
+  deactivationReason String? @map("deactivation_reason") @db.VarChar(500)
   lastLoginAt     DateTime? @map("last_login_at")
   createdAt       DateTime  @default(now()) @map("created_at")
   updatedAt       DateTime  @updatedAt @map("updated_at")
@@ -85,6 +87,7 @@ enum OtpPurpose {
   login
   register
   reset_password
+  order_lookup
 }
 
 model EmailOtp {

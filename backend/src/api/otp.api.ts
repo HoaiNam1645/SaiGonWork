@@ -4,7 +4,7 @@ import { prisma } from '@/lib/prisma'
 import { checkSendQuota, createOtp, verifyOtp, type OtpPurpose } from '@/lib/otp'
 import { renderOtpEmail } from '@/lib/emailTemplates'
 import { sendMail } from '@/lib/mailer'
-import { signGuestToken } from '@/lib/jwt'
+import { signGuestToken, signLookupToken } from '@/lib/jwt'
 import { checkDisposable } from '@/lib/emailSecurity'
 import { BadRequest } from '@/lib/errors'
 import { clientIp, clientUserAgent } from '@/lib/request'
@@ -13,13 +13,13 @@ import { type Locale } from '@/i18n'
 
 const sendableSchema = z.object({
   email: z.string().email().toLowerCase(),
-  // Public chỉ cho phép 2 purpose này. `login` / `reset_password` để dành.
-  purpose: z.enum(['register', 'guest_checkout']),
+  // Public chỉ cho phép 3 purpose này. `login` / `reset_password` để dành.
+  purpose: z.enum(['register', 'guest_checkout', 'order_lookup']),
 })
 
 const verifySchema = z.object({
   email:   z.string().email().toLowerCase(),
-  purpose: z.enum(['register', 'guest_checkout']),
+  purpose: z.enum(['register', 'guest_checkout', 'order_lookup']),
   code:    z.string().regex(/^\d{6}$/),
 })
 
@@ -83,6 +83,13 @@ export async function verify(req: Request, res: Response) {
       '30m',
     )
     return res.json({ ok: true, guestToken })
+  }
+
+  if (purpose === 'order_lookup') {
+    // Cấp lookup token TTL 7 ngày — cho phép xem list + chi tiết đơn của email
+    // này mà không cần OTP lại trong suốt tuần. Không lưu DB; hết hạn thì verify OTP lại.
+    const lookupToken = signLookupToken({ email, type: 'guest_lookup' }, '7d')
+    return res.json({ ok: true, lookupToken })
   }
 
   return res.json({ ok: true })

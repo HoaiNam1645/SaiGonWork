@@ -44,3 +44,10 @@ export const refreshLimiter = buildLimiter({
   windowMs: 15 * 60_000,
   max: 30,
 })
+
+// Order lookup precheck — 20 lần / IP / 15 phút.
+// Endpoint chỉ trả yes/no (đỡ khó chịu cho guest), nhưng vẫn cần chống enumerate.
+export const lookupCheckLimiter = buildLimiter({
+  windowMs: 15 * 60_000,
+  max: 20,
+})

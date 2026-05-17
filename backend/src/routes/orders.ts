@@ -5,8 +5,11 @@ import {
   requireRole,
   attachUserIfPresent,
   attachGuestIfPresent,
+  attachLookupIfPresent,
   requireAuthOrGuest,
+  requireLookup,
 } from '@/middleware/auth'
+import { lookupCheckLimiter } from '@/middleware/rateLimit'
 import { ah } from '@/lib/asyncHandler'
 
 export const ordersRouter = Router()
@@ -29,11 +32,30 @@ ordersRouter.get(
   ah(ordersApi.listForAdmin),
 )
 
-// GET /api/orders/:code — access check trong handler (owner / staff / admin / guest token khớp)
+// POST /api/orders/lookup/check — pre-check email có đơn không, để guest không
+// phải verify OTP rồi mới biết "không có đơn". Rate-limit per-IP chống enumerate.
+ordersRouter.post(
+  '/lookup/check',
+  lookupCheckLimiter,
+  ah(ordersApi.lookupCheck),
+)
+
+// GET /api/orders/lookup — guest list orders theo email (cần X-Lookup-Token).
+// Khai báo TRƯỚC /:code.
+ordersRouter.get(
+  '/lookup',
+  attachLookupIfPresent,
+  requireLookup,
+  ah(ordersApi.listByLookup),
+)
+
+// GET /api/orders/:code — access check trong handler (owner / staff / admin /
+// guest token khớp order / lookup token email khớp)
 ordersRouter.get(
   '/:code',
   attachUserIfPresent,
   attachGuestIfPresent,
+  attachLookupIfPresent,
   ah(ordersApi.getByCode),
 )
 

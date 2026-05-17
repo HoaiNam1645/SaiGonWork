@@ -20,6 +20,11 @@ export interface GuestTokenPayload {
   type: 'guest_order'
 }
 
+export interface LookupTokenPayload {
+  email: string
+  type: 'guest_lookup'
+}
+
 export function signAccessToken(payload: AccessTokenPayload): string {
   return jwt.sign(payload, env.JWT_ACCESS_SECRET, { expiresIn: env.JWT_ACCESS_TTL } as SignOptions)
 }
@@ -42,4 +47,12 @@ export function verifyRefresh(token: string): RefreshTokenPayload {
 
 export function verifyGuest(token: string): GuestTokenPayload {
   return jwt.verify(token, env.JWT_ACCESS_SECRET) as GuestTokenPayload
+}
+
+export function signLookupToken(payload: LookupTokenPayload, ttl = '7d'): string {
+  return jwt.sign(payload, env.JWT_ACCESS_SECRET, { expiresIn: ttl } as SignOptions)
+}
+
+export function verifyLookup(token: string): LookupTokenPayload {
+  return jwt.verify(token, env.JWT_ACCESS_SECRET) as LookupTokenPayload
 }

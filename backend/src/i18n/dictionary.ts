@@ -20,6 +20,8 @@ const de: Dict = {
   'validation.password_weak': 'Passwort muss mindestens 8 Zeichen mit Buchstaben und Zahlen enthalten.',
   'validation.postal_code_de': 'Ungültige Postleitzahl (5 Ziffern für Deutschland erforderlich).',
   'validation.quantity_range': 'Anzahl muss zwischen 1 und 99 liegen.',
+  'validation.reason_too_short': 'Bitte geben Sie einen Grund an (mindestens 3 Zeichen).',
+  'validation.reason_too_long':  'Grund darf höchstens 500 Zeichen enthalten.',
 
   // Auth
   'auth.email_taken': 'Diese E-Mail-Adresse ist bereits registriert.',
@@ -101,6 +103,18 @@ const de: Dict = {
   'email.cancelled.heading': 'Ihre Bestellung wurde storniert',
   'email.cancelled.body': 'Grund: {{reason}}',
 
+  // Account deactivation
+  'email.account_deactivated.subject': 'Ihr Konto wurde deaktiviert — Sai Gon Wok',
+  'email.account_deactivated.heading': 'Ihr Konto wurde deaktiviert',
+  'email.account_deactivated.body': 'Sehr geehrte/r {{name}}, Ihr Konto bei Sai Gon Wok wurde durch unser Team deaktiviert. Sie können sich nicht mehr anmelden oder bestellen.',
+  'email.account_deactivated.reason_label': 'Grund:',
+  'email.account_deactivated.contact': 'Wenn Sie Fragen haben oder dies klären möchten, antworten Sie bitte auf diese E-Mail.',
+
+  // Account reactivation
+  'email.account_reactivated.subject': 'Ihr Konto wurde reaktiviert — Sai Gon Wok',
+  'email.account_reactivated.heading': 'Ihr Konto ist wieder aktiv',
+  'email.account_reactivated.body': 'Sehr geehrte/r {{name}}, Ihr Konto bei Sai Gon Wok wurde reaktiviert. Sie können sich jetzt wieder anmelden und bestellen.',
+
   'email.signature': 'Mit freundlichen Grüßen,\nIhr Sai Gon Wok Team',
   'email.footer.address': 'Sài Gòn Wok · Kanalstraße 10, 70182 Stuttgart',
 }
@@ -121,6 +135,8 @@ const en: Dict = {
   'validation.password_weak': 'Password must be at least 8 characters with letters and digits.',
   'validation.postal_code_de': 'Invalid postal code (5 digits required for Germany).',
   'validation.quantity_range': 'Quantity must be between 1 and 99.',
+  'validation.reason_too_short': 'Please provide a reason (at least 3 characters).',
+  'validation.reason_too_long':  'Reason must be at most 500 characters.',
 
   // Auth
   'auth.email_taken': 'This email is already registered.',
@@ -201,6 +217,18 @@ const en: Dict = {
   'email.cancelled.subject': 'Order {{code}} cancelled',
   'email.cancelled.heading': 'Your order has been cancelled',
   'email.cancelled.body': 'Reason: {{reason}}',
+
+  // Account deactivation
+  'email.account_deactivated.subject': 'Your account has been deactivated — Sai Gon Wok',
+  'email.account_deactivated.heading': 'Your account has been deactivated',
+  'email.account_deactivated.body': 'Dear {{name}}, your Sai Gon Wok account has been deactivated by our team. You can no longer sign in or place orders.',
+  'email.account_deactivated.reason_label': 'Reason:',
+  'email.account_deactivated.contact': 'If you have questions or want to discuss this, please reply to this email.',
+
+  // Account reactivation
+  'email.account_reactivated.subject': 'Your account has been reactivated — Sai Gon Wok',
+  'email.account_reactivated.heading': 'Your account is active again',
+  'email.account_reactivated.body': 'Dear {{name}}, your Sai Gon Wok account has been reactivated. You can sign in and place orders again.',
 
   'email.signature': 'Best regards,\nYour Sai Gon Wok team',
   'email.footer.address': 'Sài Gòn Wok · Kanalstraße 10, 70182 Stuttgart',

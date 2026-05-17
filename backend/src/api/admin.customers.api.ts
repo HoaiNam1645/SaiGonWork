@@ -6,6 +6,9 @@ import { BadRequest, Forbidden, NotFound } from '@/lib/errors'
 import { generateTempPassword, hashPassword } from '@/lib/passwords'
 import { logAuditAsync } from '@/lib/auditLog'
 import { clientIp } from '@/lib/request'
+import { sendMail } from '@/lib/mailer'
+import { renderAccountDeactivatedEmail, renderAccountReactivatedEmail } from '@/lib/emailTemplates'
+import { detectLocale } from '@/i18n'
 
 // =====================================================================
 // GET /api/admin/customers
@@ -22,7 +25,7 @@ const listQuerySchema = z.object({
             'total_orders_desc','total_orders_asc',
             'last_order_desc','last_order_asc',
           ]).default('created_desc'),
-  includeInactive: z.coerce.boolean().default(false),
+  status: z.enum(['all', 'active', 'inactive']).default('all'),
   limit:  z.coerce.number().int().min(1).max(100).default(20),
   offset: z.coerce.number().int().min(0).default(0),
 })
@@ -32,7 +35,8 @@ export async function listCustomers(req: Request, res: Response) {
 
   const where: Prisma.UserWhereInput = {
     role: 'customer',
-    ...(q.includeInactive ? {} : { isActive: true }),
+    ...(q.status === 'active'   ? { isActive: true  } : {}),
+    ...(q.status === 'inactive' ? { isActive: false } : {}),
     ...(q.q ? {
       OR: [
         { email:    { contains: q.q } },
@@ -310,6 +314,10 @@ export async function updateCustomer(req: Request, res: Response) {
 // POST /api/admin/customers/:id/deactivate + /activate (soft delete)
 // =====================================================================
 
+const deactivateSchema = z.object({
+  reason: z.string().trim().min(3, 'validation.reason_too_short').max(500, 'validation.reason_too_long'),
+})
+
 export async function deactivateCustomer(req: Request, res: Response) {
   const actorId = BigInt(req.user!.sub)
   const id      = BigInt(req.params.id)
@@ -317,6 +325,8 @@ export async function deactivateCustomer(req: Request, res: Response) {
   if (id === actorId) {
     throw Forbidden('user.cannot_deactivate_self', 'CANNOT_DEACTIVATE_SELF')
   }
+
+  const { reason } = deactivateSchema.parse(req.body)
 
   const target = await prisma.user.findUnique({ where: { id } })
   if (!target)                    throw NotFound('user.not_found')
@@ -329,7 +339,11 @@ export async function deactivateCustomer(req: Request, res: Response) {
 
   await prisma.user.update({
     where: { id },
-    data:  { isActive: false },
+    data:  {
+      isActive:           false,
+      deactivatedAt:      new Date(),
+      deactivationReason: reason,
+    },
   })
 
   logAuditAsync({
@@ -338,10 +352,22 @@ export async function deactivateCustomer(req: Request, res: Response) {
     entityId:   id,
     actorId,
     actorRole:  req.user!.role,
+    diff:       { reason },
     ipAddress:  clientIp(req),
   })
 
-  res.json({ ok: true })
+  // Notify user qua email (best-effort — không block response).
+  void (async () => {
+    try {
+      const locale = detectLocale(req)
+      const mail = renderAccountDeactivatedEmail(locale, { name: target.fullName, reason })
+      await sendMail({ to: target.email, ...mail })
+    } catch (err) {
+      console.error('[deactivateCustomer] mail send failed', err)
+    }
+  })()
+
+  res.json({ ok: true, reason })
 }
 
 export async function activateCustomer(req: Request, res: Response) {
@@ -359,7 +385,11 @@ export async function activateCustomer(req: Request, res: Response) {
 
   await prisma.user.update({
     where: { id },
-    data:  { isActive: true },
+    data:  {
+      isActive:           true,
+      deactivatedAt:      null,
+      deactivationReason: null,
+    },
   })
 
   logAuditAsync({
@@ -370,6 +400,16 @@ export async function activateCustomer(req: Request, res: Response) {
     actorRole:  req.user!.role,
     ipAddress:  clientIp(req),
   })
+
+  void (async () => {
+    try {
+      const locale = detectLocale(req)
+      const mail = renderAccountReactivatedEmail(locale, { name: target.fullName })
+      await sendMail({ to: target.email, ...mail })
+    } catch (err) {
+      console.error('[activateCustomer] mail send failed', err)
+    }
+  })()
 
   res.json({ ok: true })
 }
@@ -408,15 +448,17 @@ export async function resetCustomerPassword(req: Request, res: Response) {
 // =====================================================================
 
 const selectFields = {
-  id:               true,
-  email:            true,
-  fullName:         true,
-  phone:            true,
-  role:             true,
-  isActive:         true,
-  emailVerifiedAt:  true,
-  lastLoginAt:      true,
-  createdAt:        true,
+  id:                  true,
+  email:               true,
+  fullName:            true,
+  phone:               true,
+  role:                true,
+  isActive:            true,
+  deactivatedAt:       true,
+  deactivationReason:  true,
+  emailVerifiedAt:     true,
+  lastLoginAt:         true,
+  createdAt:           true,
 } as const
 
 interface CustomerStats {
@@ -453,28 +495,32 @@ async function aggregateOrderStats(userIds: bigint[]): Promise<Map<string, Custo
 }
 
 function shape(u: {
-  id:               bigint
-  email:            string
-  fullName:         string
-  phone:            string | null
-  role:             string
-  isActive:         boolean
-  emailVerifiedAt:  Date | null
-  lastLoginAt:      Date | null
-  createdAt:        Date
+  id:                  bigint
+  email:               string
+  fullName:            string
+  phone:               string | null
+  role:                string
+  isActive:            boolean
+  deactivatedAt:       Date | null
+  deactivationReason:  string | null
+  emailVerifiedAt:     Date | null
+  lastLoginAt:         Date | null
+  createdAt:           Date
 }, stats?: CustomerStats) {
   return {
-    id:               u.id.toString(),
-    email:            u.email,
-    fullName:         u.fullName,
-    phone:            u.phone,
-    role:             u.role,
-    isActive:         u.isActive,
-    emailVerifiedAt:  u.emailVerifiedAt?.toISOString() ?? null,
-    lastLoginAt:      u.lastLoginAt?.toISOString()     ?? null,
-    createdAt:        u.createdAt.toISOString(),
-    totalOrders:      stats?.totalOrders ?? 0,
-    totalSpent:       stats?.totalSpent  ?? 0,
-    lastOrderAt:      stats?.lastOrderAt ?? null,
+    id:                  u.id.toString(),
+    email:               u.email,
+    fullName:            u.fullName,
+    phone:               u.phone,
+    role:                u.role,
+    isActive:            u.isActive,
+    deactivatedAt:       u.deactivatedAt?.toISOString() ?? null,
+    deactivationReason:  u.deactivationReason ?? null,
+    emailVerifiedAt:     u.emailVerifiedAt?.toISOString() ?? null,
+    lastLoginAt:         u.lastLoginAt?.toISOString()     ?? null,
+    createdAt:           u.createdAt.toISOString(),
+    totalOrders:         stats?.totalOrders ?? 0,
+    totalSpent:          stats?.totalSpent  ?? 0,
+    lastOrderAt:         stats?.lastOrderAt ?? null,
   }
 }

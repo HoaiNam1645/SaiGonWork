@@ -18,18 +18,21 @@ interface ApiOptions extends Omit<RequestInit, 'body'> {
   locale?: string
   /** Guest token (cấp sau khi verify OTP). Sẽ gắn vào header X-Guest-Token. */
   guestToken?: string
+  /** Lookup token (cấp sau khi verify OTP purpose=order_lookup). X-Lookup-Token. */
+  lookupToken?: string
 }
 
 export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
-  const { body, locale, headers, guestToken, ...rest } = opts
+  const { body, locale, headers, guestToken, lookupToken, ...rest } = opts
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...rest,
     credentials: 'include',
     headers: {
       'Content-Type': 'application/json',
-      ...(locale       ? { 'X-Locale':       locale     } : {}),
-      ...(guestToken   ? { 'X-Guest-Token':  guestToken } : {}),
+      ...(locale       ? { 'X-Locale':       locale       } : {}),
+      ...(guestToken   ? { 'X-Guest-Token':  guestToken   } : {}),
+      ...(lookupToken  ? { 'X-Lookup-Token': lookupToken  } : {}),
       ...(headers || {}),
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,

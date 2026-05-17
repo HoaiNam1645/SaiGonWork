@@ -15,18 +15,20 @@ import { api, ApiError } from '@/lib/api'
 // =====================================================================
 
 interface Customer {
-  id:               string
-  email:            string
-  fullName:         string
-  phone:            string | null
-  role:             string
-  isActive:         boolean
-  emailVerifiedAt:  string | null
-  lastLoginAt:      string | null
-  createdAt:        string
-  totalOrders:      number
-  totalSpent:       number
-  lastOrderAt:      string | null
+  id:                  string
+  email:               string
+  fullName:            string
+  phone:               string | null
+  role:                string
+  isActive:            boolean
+  deactivatedAt:       string | null
+  deactivationReason:  string | null
+  emailVerifiedAt:     string | null
+  lastLoginAt:         string | null
+  createdAt:           string
+  totalOrders:         number
+  totalSpent:          number
+  lastOrderAt:         string | null
 }
 
 interface ListResponse {
@@ -37,8 +39,14 @@ interface ListResponse {
 }
 
 type SortKey = 'created' | 'name' | 'total_spent' | 'total_orders' | 'last_order'
+type StatusFilter = 'active' | 'inactive'
 
 const PAGE_LIMIT = 20
+
+const STATUS_FILTERS: Array<{ key: StatusFilter; label: string }> = [
+  { key: 'active',   label: 'admin.customers.filter.active'   },
+  { key: 'inactive', label: 'admin.customers.filter.inactive' },
+]
 
 function toApiSort(key: SortKey, dir: SortDir): string {
   return `${key}_${dir}`
@@ -52,6 +60,7 @@ export default function AdminCustomersPage() {
   const { t, locale } = useI18n()
 
   const [search,  setSearch]  = useState('')
+  const [status,  setStatus]  = useState<StatusFilter>('active')
   const [sortKey, setSortKey] = useState<SortKey>('created')
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [offset,  setOffset]  = useState(0)
@@ -60,7 +69,7 @@ export default function AdminCustomersPage() {
   const [loading, setLoading] = useState(true)
   const [error,   setError]   = useState<string | null>(null)
 
-  useEffect(() => { setOffset(0) }, [search, sortKey, sortDir])
+  useEffect(() => { setOffset(0) }, [search, status, sortKey, sortDir])
 
   useEffect(() => {
     let alive = true
@@ -69,6 +78,7 @@ export default function AdminCustomersPage() {
       try {
         const p = new URLSearchParams()
         if (search.trim()) p.set('q', search.trim())
+        p.set('status', status)
         p.set('sort',   toApiSort(sortKey, sortDir))
         p.set('limit',  String(PAGE_LIMIT))
         p.set('offset', String(offset))
@@ -83,7 +93,7 @@ export default function AdminCustomersPage() {
       }
     })()
     return () => { alive = false }
-  }, [search, sortKey, sortDir, offset])
+  }, [search, status, sortKey, sortDir, offset])
 
   function handleSort(key: SortKey, dir: SortDir) {
     setSortKey(key); setSortDir(dir)
@@ -102,12 +112,31 @@ export default function AdminCustomersPage() {
       />
 
       <div className="rounded-xl border border-gray-200 bg-white">
-        <div className="px-5 py-4 border-b border-gray-100">
-          <SearchInput
-            value={search}
-            onChange={setSearch}
-            placeholder={t('admin.customers.search_ph')}
-          />
+        <div className="px-5 py-4 border-b border-gray-100 flex flex-col md:flex-row md:items-center gap-3">
+          <div className="flex-1">
+            <SearchInput
+              value={search}
+              onChange={setSearch}
+              placeholder={t('admin.customers.search_ph')}
+            />
+          </div>
+          <div className="inline-flex items-center gap-1 rounded-lg bg-gray-100 p-1 shrink-0">
+            {STATUS_FILTERS.map(f => {
+              const active = status === f.key
+              return (
+                <button
+                  key={f.key}
+                  type="button"
+                  onClick={() => setStatus(f.key)}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                  }`}
+                >
+                  {t(f.label)}
+                </button>
+              )
+            })}
+          </div>
         </div>
 
         {loading && !customers ? (
@@ -119,7 +148,7 @@ export default function AdminCustomersPage() {
         ) : (
           <>
             <div className="max-w-full overflow-x-auto">
-              <div className="min-w-[980px]">
+              <div className="min-w-[1100px]">
                 <Table>
                   <TableHeader className="border-b border-gray-100 bg-gray-50/60">
                     <TableRow>
@@ -141,6 +170,9 @@ export default function AdminCustomersPage() {
                       <SortableHeader<SortKey> sortKey="created" activeKey={sortKey} activeDir={sortDir} onSort={handleSort} align="right">
                         {t('admin.customers.col.joined')}
                       </SortableHeader>
+                      <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider">
+                        {t('admin.customers.col.status')}
+                      </TableCell>
                       <TableCell isHeader className="px-5 py-3"><span className="sr-only">View</span></TableCell>
                     </TableRow>
                   </TableHeader>
@@ -176,14 +208,18 @@ function CustomerRow({
     : '—'
 
   return (
-    <TableRow className="hover:bg-gray-50 transition-colors">
+    <TableRow className={`hover:bg-gray-50 transition-colors ${c.isActive ? '' : 'bg-error-50/20'}`}>
       <TableCell className="px-5 py-4">
         <Link href={`/admin/customers/${c.id}`} className="flex items-center gap-3 group">
-          <div className="w-9 h-9 rounded-full bg-brand-50 text-brand-500 flex items-center justify-center font-semibold text-sm flex-shrink-0">
+          <div className={`w-9 h-9 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0 ${
+            c.isActive ? 'bg-brand-50 text-brand-500' : 'bg-gray-100 text-gray-400'
+          }`}>
             {initials}
           </div>
           <div className="min-w-0">
-            <div className="text-sm font-medium text-gray-800 group-hover:text-brand-500 transition-colors truncate">
+            <div className={`text-sm font-medium truncate transition-colors ${
+              c.isActive ? 'text-gray-800 group-hover:text-brand-500' : 'text-gray-500 group-hover:text-gray-700'
+            }`}>
               {c.fullName}
             </div>
             <div className="text-xs text-gray-500 truncate">{c.email}</div>
@@ -208,6 +244,22 @@ function CustomerRow({
       </TableCell>
       <TableCell className="px-5 py-4 text-right text-sm text-gray-600 tabular-nums">
         {joinedStr}
+      </TableCell>
+      <TableCell className="px-5 py-4">
+        {c.isActive ? (
+          <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-success-600">
+            <span className="w-1.5 h-1.5 rounded-full bg-success-500" />
+            {t('admin.staff.active')}
+          </span>
+        ) : (
+          <span
+            className={`inline-flex items-center gap-1.5 text-[11px] font-medium text-error-600 ${c.deactivationReason ? 'cursor-help underline decoration-dotted decoration-error-300' : ''}`}
+            title={c.deactivationReason ? `${t('admin.customers.deactivation.reason_label')} ${c.deactivationReason}` : undefined}
+          >
+            <span className="w-1.5 h-1.5 rounded-full bg-error-500" />
+            {t('admin.staff.inactive')}
+          </span>
+        )}
       </TableCell>
       <TableCell className="px-5 py-4 text-right">
         <Link

@@ -9,6 +9,7 @@ import Footer from '@/components/Footer'
 import { useI18n } from '@/i18n/I18nContext'
 import { api, ApiError } from '@/lib/api'
 import { readOrderToken, saveOrderToken } from '@/lib/guestToken'
+import { readLookupToken } from '@/lib/lookupToken'
 
 // =====================================================================
 // API types
@@ -143,12 +144,14 @@ export default function OrderDetailPage() {
         const urlToken = searchParams.get('token') ?? undefined
         const lsToken  = !urlToken ? readOrderToken(code) ?? undefined : undefined
         const guest    = urlToken || lsToken
+        const lookup   = readLookupToken() ?? undefined
 
         // Nếu URL có token mà LS chưa có → persist cho lần sau
         if (urlToken) saveOrderToken(code, urlToken)
 
         const res = await api<GetOrderResponse>(`/orders/${encodeURIComponent(code)}`, {
-          guestToken: guest,
+          guestToken:  guest,
+          lookupToken: lookup,
           locale,
         })
         setData(res)

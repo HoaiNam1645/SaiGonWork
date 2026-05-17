@@ -1,13 +1,21 @@
 import type { NextFunction, Request, Response } from 'express'
 import { Forbidden, Unauthorized } from '@/lib/errors'
-import { type AccessTokenPayload, type GuestTokenPayload, verifyAccess, verifyGuest } from '@/lib/jwt'
+import {
+  type AccessTokenPayload,
+  type GuestTokenPayload,
+  type LookupTokenPayload,
+  verifyAccess,
+  verifyGuest,
+  verifyLookup,
+} from '@/lib/jwt'
 
 declare global {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace Express {
     interface Request {
-      user?:     AccessTokenPayload
-      guestOtp?: GuestTokenPayload
+      user?:        AccessTokenPayload
+      guestOtp?:    GuestTokenPayload
+      guestLookup?: LookupTokenPayload
     }
   }
 }
@@ -72,5 +80,27 @@ export function attachGuestIfPresent(req: Request, _res: Response, next: NextFun
 /** Yêu cầu phải có JWT customer HOẶC guest token đã verify OTP. */
 export function requireAuthOrGuest(req: Request, _res: Response, next: NextFunction) {
   if (req.user || req.guestOtp) return next()
+  return next(Unauthorized('auth.token_missing'))
+}
+
+/**
+ * Đặt `req.guestLookup` nếu header `X-Lookup-Token` hợp lệ. KHÔNG fail nếu thiếu.
+ * Lookup token chỉ cấp quyền xem đơn theo email (sau khi verify OTP qua /otp/verify
+ * với purpose='order_lookup'). TTL 30 phút.
+ */
+export function attachLookupIfPresent(req: Request, _res: Response, next: NextFunction) {
+  const tok = req.headers['x-lookup-token']
+  if (typeof tok !== 'string' || tok.length === 0) return next()
+  try {
+    req.guestLookup = verifyLookup(tok)
+  } catch {
+    // ignore
+  }
+  return next()
+}
+
+/** Yêu cầu phải có lookup token hợp lệ (cho endpoint /orders/lookup). */
+export function requireLookup(req: Request, _res: Response, next: NextFunction) {
+  if (req.guestLookup) return next()
   return next(Unauthorized('auth.token_missing'))
 }

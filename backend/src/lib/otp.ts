@@ -7,7 +7,7 @@ import { AuditAction, logAuditAsync } from '@/lib/auditLog'
 
 const OTP_LENGTH = 6
 
-export type OtpPurpose = 'guest_checkout' | 'login' | 'register' | 'reset_password'
+export type OtpPurpose = 'guest_checkout' | 'login' | 'register' | 'reset_password' | 'order_lookup'
 
 /** Sinh OTP 6 chữ số dùng `crypto.randomInt` để chống bias. */
 export function generateOtpCode(): string {
