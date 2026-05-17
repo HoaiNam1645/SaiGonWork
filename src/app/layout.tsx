@@ -1,7 +1,8 @@
 import type { Metadata } from 'next'
-import { Playfair_Display, Nunito, Caveat, Permanent_Marker } from 'next/font/google'
+import { Playfair_Display, Nunito, Caveat, Permanent_Marker, Outfit } from 'next/font/google'
 import './globals.css'
 import { CartProvider } from '@/context/CartContext'
+import { AuthProvider } from '@/context/AuthContext'
 import { I18nProvider } from '@/i18n/I18nContext'
 import { menuCategories, restaurantInfo } from '@/data/menu'
 import PromoBanner from '@/components/PromoBanner'
@@ -29,6 +30,12 @@ const permanentMarker = Permanent_Marker({
   variable: '--font-marker',
   subsets: ['latin'],
   weight: '400',
+  display: 'swap',
+})
+
+const outfit = Outfit({
+  variable: '--font-outfit',
+  subsets: ['latin'],
   display: 'swap',
 })
 
@@ -122,7 +129,7 @@ const restaurantJsonLd = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="de" className={`${playfair.variable} ${nunito.variable} ${caveat.variable} ${permanentMarker.variable}`}>
+    <html lang="de" className={`${playfair.variable} ${nunito.variable} ${caveat.variable} ${permanentMarker.variable} ${outfit.variable}`}>
       <head>
         <script
           type="application/ld+json"
@@ -131,11 +138,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       </head>
       <body className="min-h-screen flex flex-col">
         <I18nProvider>
-          <CartProvider>
-            <PromoBanner />
-            {children}
-            <CartDrawer />
-          </CartProvider>
+          <AuthProvider>
+            <CartProvider>
+              <PromoBanner />
+              {children}
+              <CartDrawer />
+            </CartProvider>
+          </AuthProvider>
         </I18nProvider>
       </body>
     </html>

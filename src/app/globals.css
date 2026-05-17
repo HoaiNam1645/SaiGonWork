@@ -17,6 +17,58 @@
   --font-sans: var(--font-nunito), 'Segoe UI', sans-serif;
   --font-script: var(--font-caveat), 'Brush Script MT', cursive;
   --font-marker: var(--font-marker), 'Permanent Marker', cursive;
+  --font-outfit: var(--font-outfit), 'Inter', system-ui, sans-serif;
+
+  /* ============ TailAdmin tokens (chỉ dùng trong /admin/*) ============ */
+  /* Brand — indigo blue */
+  --color-brand-25:  #f2f7ff;
+  --color-brand-50:  #ecf3ff;
+  --color-brand-100: #dde9ff;
+  --color-brand-200: #c2d6ff;
+  --color-brand-300: #9cb9ff;
+  --color-brand-400: #7592ff;
+  --color-brand-500: #465fff;
+  --color-brand-600: #3641f5;
+  --color-brand-700: #2a31d8;
+  --color-brand-800: #252dae;
+  --color-brand-900: #262e89;
+
+  /* Neutral grayscale */
+  --color-gray-25:  #fcfcfd;
+  --color-gray-50:  #f9fafb;
+  --color-gray-100: #f2f4f7;
+  --color-gray-200: #e4e7ec;
+  --color-gray-300: #d0d5dd;
+  --color-gray-400: #98a2b3;
+  --color-gray-500: #667085;
+  --color-gray-600: #475467;
+  --color-gray-700: #344054;
+  --color-gray-800: #1d2939;
+  --color-gray-900: #101828;
+
+  /* Semantic — success / warning / error */
+  --color-success-50:  #ecfdf3;
+  --color-success-100: #d1fadf;
+  --color-success-500: #12b76a;
+  --color-success-600: #039855;
+  --color-success-700: #027a48;
+
+  --color-warning-50:  #fffaeb;
+  --color-warning-100: #fef0c7;
+  --color-warning-500: #f79009;
+  --color-warning-600: #dc6803;
+  --color-warning-700: #b54708;
+
+  --color-error-50:  #fef3f2;
+  --color-error-100: #fee4e2;
+  --color-error-500: #f04438;
+  --color-error-600: #d92d20;
+  --color-error-700: #b42318;
+
+  --color-orange-50:  #fff6ed;
+  --color-orange-100: #ffead5;
+  --color-orange-500: #fb6514;
+  --color-orange-600: #ec4a0a;
 }
 
 :root {
@@ -32,6 +84,13 @@ body {
   color: var(--color-ink);
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
+}
+
+/* Admin shell — override body bg + font cho /admin/* (warm parchment → cool gray) */
+body:has([data-admin-shell]) {
+  background-color: #f9fafb;
+  color: #344054;
+  font-family: var(--font-outfit);
 }
 
 .menu-page-bg {
@@ -128,6 +187,18 @@ main > section:not(:first-of-type) {
 }
 .scrollbar-hide::-webkit-scrollbar {
   display: none;
+}
+
+/* Loading overlay fade-in */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Custom scrollbar for cart */

@@ -3,11 +3,23 @@
 import { useEffect, useRef } from 'react'
 import 'leaflet/dist/leaflet.css'
 import type { LatLng } from '@/lib/delivery'
-import { RESTAURANT } from '@/lib/delivery'
+
+interface StoreOrigin {
+  lat:     number
+  lng:     number
+  name?:   string | null
+  address?: string | null
+}
 
 interface Props {
-  destination: LatLng | null
+  /** Tọa độ store. Truyền vào → vẽ marker shop + cho phép fit bounds chung với
+   *  destination (checkout). Bỏ qua → chỉ vẽ marker khách (vd setup địa chỉ cá nhân
+   *  ở /account, không cần thấy shop). */
+  origin?:       StoreOrigin
+  destination:   LatLng | null
   routeGeometry: [number, number][] | null
+  /** Khi set → marker khách kéo thả được, dragend fire callback. */
+  onDestinationChange?: (pos: LatLng) => void
 }
 
 const RESTAURANT_PIN_SVG = `
@@ -26,10 +38,12 @@ function svgUrl(svg: string) {
   return `data:image/svg+xml;base64,${typeof window === 'undefined' ? '' : btoa(svg)}`
 }
 
-export default function CheckoutMap({ destination, routeGeometry }: Props) {
+export default function CheckoutMap({ origin, destination, routeGeometry, onDestinationChange }: Props) {
+  // Ref để callback mới nhất luôn được dùng trong dragend (closure stable)
+  const onChangeRef = useRef(onDestinationChange)
+  onChangeRef.current = onDestinationChange
+  const draggable = !!onDestinationChange
   const containerRef = useRef<HTMLDivElement>(null)
-  // Use any for leaflet refs to avoid bringing the type into module scope
-  // (leaflet only loads on the client and we lazy-import it).
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const mapRef = useRef<any>(null)
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -46,8 +60,14 @@ export default function CheckoutMap({ destination, routeGeometry }: Props) {
 
     import('leaflet').then((L) => {
       if (cancelled || !containerRef.current) return
+      // Center: ưu tiên origin (checkout), fallback destination (address form chỉ có user)
+      const center: [number, number] = origin
+        ? [origin.lat, origin.lng]
+        : destination
+          ? [destination.lat, destination.lng]
+          : [0, 0]
       const map = L.map(containerRef.current, {
-        center: [RESTAURANT.lat, RESTAURANT.lng],
+        center,
         zoom: 14,
         zoomControl: true,
         attributionControl: true,
@@ -57,21 +77,28 @@ export default function CheckoutMap({ destination, routeGeometry }: Props) {
         attribution: '© OpenStreetMap',
       }).addTo(map)
 
-      const restaurantIcon = L.icon({
-        iconUrl: svgUrl(RESTAURANT_PIN_SVG),
-        iconSize: [32, 40],
-        iconAnchor: [16, 40],
-        popupAnchor: [0, -36],
-      })
-      const restaurantMarker = L.marker([RESTAURANT.lat, RESTAURANT.lng], {
-        icon: restaurantIcon,
-      }).addTo(map)
-      restaurantMarker.bindPopup(`<strong>${RESTAURANT.name}</strong><br/>${RESTAURANT.address}`)
+      // Chỉ vẽ marker shop khi caller truyền origin
+      if (origin) {
+        const restaurantIcon = L.icon({
+          iconUrl: svgUrl(RESTAURANT_PIN_SVG),
+          iconSize: [32, 40],
+          iconAnchor: [16, 40],
+          popupAnchor: [0, -36],
+        })
+        const restaurantMarker = L.marker([origin.lat, origin.lng], {
+          icon: restaurantIcon,
+        }).addTo(map)
+        const popupLabel =
+          `<strong>${origin.name ?? ''}</strong>` +
+          (origin.address ? `<br/>${origin.address}` : '')
+        if (popupLabel.trim() !== '<strong></strong>') {
+          restaurantMarker.bindPopup(popupLabel)
+        }
+        restaurantMarkerRef.current = restaurantMarker
+      }
 
       mapRef.current = map
-      restaurantMarkerRef.current = restaurantMarker
 
-      // force a resize after mount in case container was hidden
       setTimeout(() => map.invalidateSize(), 100)
     })
 
@@ -82,6 +109,9 @@ export default function CheckoutMap({ destination, routeGeometry }: Props) {
         mapRef.current = null
       }
     }
+    // origin lat/lng intentionally NOT in deps: store coords là single source of truth
+    // và không đổi giữa các phiên FE. Nếu admin sửa, refresh page là OK.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   // Update destination marker
@@ -101,14 +131,24 @@ export default function CheckoutMap({ destination, routeGeometry }: Props) {
           iconSize: [28, 36],
           iconAnchor: [14, 36],
         })
-        const m = L.marker([destination.lat, destination.lng], { icon: userIcon }).addTo(map)
+        const m = L.marker([destination.lat, destination.lng], {
+          icon: userIcon,
+          draggable,
+          autoPan: true,
+        }).addTo(map)
+        if (draggable) {
+          m.on('dragend', () => {
+            const ll = m.getLatLng()
+            onChangeRef.current?.({ lat: ll.lat, lng: ll.lng })
+          })
+        }
         userMarkerRef.current = m
       }
     })
     return () => {
       cancelled = true
     }
-  }, [destination])
+  }, [destination, draggable])
 
   // Update route polyline + fit bounds
   useEffect(() => {
@@ -131,21 +171,21 @@ export default function CheckoutMap({ destination, routeGeometry }: Props) {
         }).addTo(map)
         routeLineRef.current = line
         map.fitBounds(line.getBounds(), { padding: [40, 40] })
-      } else if (destination) {
-        // No route yet but we have a destination — fit between two points
+      } else if (destination && origin) {
+        // No route yet — fit chung 2 điểm shop + khách (checkout)
         map.fitBounds(
-          L.latLngBounds(
-            [RESTAURANT.lat, RESTAURANT.lng],
-            [destination.lat, destination.lng],
-          ),
+          L.latLngBounds([origin.lat, origin.lng], [destination.lat, destination.lng]),
           { padding: [60, 60] },
         )
+      } else if (destination) {
+        // Address form: chỉ có user marker → center vào nó
+        map.setView([destination.lat, destination.lng], 15)
       }
     })
     return () => {
       cancelled = true
     }
-  }, [routeGeometry, destination])
+  }, [routeGeometry, destination, origin?.lat, origin?.lng])
 
   return (
     <div

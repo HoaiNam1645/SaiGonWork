@@ -1,11 +1,12 @@
 'use client'
 
-import { menuCategories } from '@/data/menu'
+import { useMenuCategories } from '@/lib/menuApi'
 import { useI18n } from '@/i18n/I18nContext'
 import { InstagramIcon, FacebookIcon, MapPinIcon, ClockIcon } from './Icons'
 
 export default function Footer() {
   const { t, tCategory } = useI18n()
+  const menuCategories = useMenuCategories()
   const year = new Date().getFullYear()
 
   return (

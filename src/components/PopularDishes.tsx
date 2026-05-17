@@ -1,12 +1,13 @@
 'use client'
 
 import Image from 'next/image'
-import { menuCategories } from '@/data/menu'
+import { useMenuCategories } from '@/lib/menuApi'
 import { useI18n } from '@/i18n/I18nContext'
 import { ArrowRightIcon, FlameIcon } from './Icons'
 
 export default function PopularDishes() {
   const { t } = useI18n()
+  const menuCategories = useMenuCategories()
   const popularItems = menuCategories
     .flatMap((c) => c.items)
     .filter((i) => i.isPopular)

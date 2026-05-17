@@ -4,22 +4,29 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import dynamic from 'next/dynamic'
 import Image from 'next/image'
 import Link from 'next/link'
+import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
+import SavedAddressPicker, { type SavedAddress } from '@/components/SavedAddressPicker'
+import GuestOtpModal from '@/components/GuestOtpModal'
 import { useCart } from '@/context/CartContext'
+import { useAuth } from '@/context/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
+import { api, ApiError } from '@/lib/api'
+import { saveOrderToken } from '@/lib/guestToken'
+import { useStoreSettings } from '@/lib/storeApi'
 import {
-  DELIVERY,
-  RESTAURANT,
   computeShipping,
   fetchRoute,
   formatEuro,
   formatNominatim,
   reverseGeocode,
+  searchAddress,
   type LatLng,
   type NominatimResult,
   type RouteResult,
+  type ShippingConfig,
 } from '@/lib/delivery'
 
 const CheckoutMap = dynamic(() => import('@/components/CheckoutMap'), {
@@ -34,23 +41,39 @@ const CheckoutMap = dynamic(() => import('@/components/CheckoutMap'), {
   ),
 })
 
-type PaymentMethod = 'card' | 'paypal' | 'bank' | 'cash'
-type DeliveryTime = 'now' | 'scheduled'
+// MVP: chỉ enable bank_qr_image. Cash + PayPal giữ trong DB cho V2.
+type PaymentMethod = 'bank'
+
+type ApiPaymentMethod = 'cash_on_delivery' | 'paypal' | 'bank_qr_image'
+const PAYMENT_API_MAP: Record<PaymentMethod, ApiPaymentMethod> = {
+  bank: 'bank_qr_image',
+}
+
+interface CreateOrderResponse {
+  order: { code: string }
+  paymentInstructions: unknown
+  guestToken?: string
+}
 
 export default function CheckoutPage() {
   const { t, locale } = useI18n()
+  const router = useRouter()
+  const { user } = useAuth()
   const { items, total: subtotal, clearCart } = useCart()
+  const { store, loading: storeLoading, error: storeError } = useStoreSettings()
 
   // Form state
-  const [name, setName] = useState('')
-  const [phone, setPhone] = useState('')
-  const [email, setEmail] = useState('')
+  const [name,        setName]        = useState('')
+  const [phone,       setPhone]       = useState('')
+  const [email,       setEmail]       = useState('')
   const [addressText, setAddressText] = useState('')
-  const [addressApt, setAddressApt] = useState('')
+  const [addressApt,  setAddressApt]  = useState('')
+  const [city,        setCity]        = useState('Stuttgart')
+  const [postalCode,  setPostalCode]  = useState('')
   const [destination, setDestination] = useState<LatLng | null>(null)
-  const [time, setTime] = useState<DeliveryTime>('now')
-  const [scheduledAt, setScheduledAt] = useState('')
-  const [payment, setPayment] = useState<PaymentMethod>('card')
+  const [savedAddrId, setSavedAddrId] = useState<string | null>(null)
+
+  const payment: PaymentMethod = 'bank'  // MVP: locked
   const [note, setNote] = useState('')
 
   // Location state
@@ -58,26 +81,65 @@ export default function CheckoutPage() {
   const [locationError, setLocationError] = useState<string | null>(null)
 
   // Route state
-  const [route, setRoute] = useState<RouteResult | null>(null)
-  const [routing, setRouting] = useState(false)
+  const [route,    setRoute]    = useState<RouteResult | null>(null)
+  const [routing,  setRouting]  = useState(false)
   const routeAbortRef = useRef<AbortController | null>(null)
 
   // Submit state
-  const [submitting, setSubmitting] = useState(false)
-  const [submittedId, setSubmittedId] = useState<string | null>(null)
+  const [submitting,  setSubmitting]  = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
+  const [showOtp,     setShowOtp]     = useState(false)
 
-  // Compute shipping based on subtotal + km
-  const km = route?.distanceKm ?? null
-  const shipping = useMemo(() => computeShipping(km, subtotal), [km, subtotal])
-  const total = subtotal + (shipping ?? 0)
-  const outOfZone = km != null && km > DELIVERY.maxRadiusKm
-  const freeShippingDelta = DELIVERY.freeShippingThreshold - subtotal
-  const freeShippingUnlocked = subtotal >= DELIVERY.freeShippingThreshold
-  const freeShippingProgress = Math.min(100, (subtotal / DELIVERY.freeShippingThreshold) * 100)
-
-  // Fetch route whenever destination changes
+  // ─── Prefill từ user khi login ───
   useEffect(() => {
-    if (!destination) {
+    if (!user) return
+    setName(prev  => prev  || user.fullName)
+    setEmail(prev => prev  || user.email)
+    setPhone(prev => prev  || (user.phone ?? ''))
+  }, [user])
+
+  // Khi user gõ edit trên field địa chỉ sau khi đã pick saved address → unbind
+  // savedAddrId để FE gửi inline address mới thay vì address_id (tránh BE silently
+  // ignore edits của user).
+  function unbindSavedIfNeeded() {
+    if (savedAddrId) setSavedAddrId(null)
+  }
+  const editAddressLine = (v: string) => { setAddressApt(v);  unbindSavedIfNeeded() }
+  const editCity        = (v: string) => { setCity(v);        unbindSavedIfNeeded() }
+  const editPostal      = (v: string) => { setPostalCode(v);  unbindSavedIfNeeded() }
+
+  // Cấu hình tính ship — bắt nguồn từ store_settings (BE), KHÔNG hardcode.
+  const shippingConfig: ShippingConfig | null = store
+    ? {
+        perKm:             store.delivery.perKm             ?? 0,
+        freeShipThreshold: store.delivery.freeShipThreshold ?? null,
+        baseFee:           store.delivery.baseFee           ?? 0,
+      }
+    : null
+  const maxRadiusKm   = store?.delivery.radiusKm           ?? null
+  const freeThreshold = store?.delivery.freeShipThreshold  ?? null
+
+  // Compute shipping (preview client-side; BE sẽ recompute từ DB lúc submit)
+  const km = route?.distanceKm ?? null
+  const shipping = useMemo(
+    () => computeShipping(km, subtotal, shippingConfig),
+    // shippingConfig là object mới mỗi render — depend vào primitives bên trong
+    // để không trigger re-compute liên tục.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [km, subtotal, shippingConfig?.perKm, shippingConfig?.freeShipThreshold, shippingConfig?.baseFee],
+  )
+  const total = subtotal + (shipping ?? 0)
+  const outOfZone =
+    km != null && maxRadiusKm != null && km > maxRadiusKm
+  const freeShippingDelta    = freeThreshold != null ? freeThreshold - subtotal : 0
+  const freeShippingUnlocked = freeThreshold != null && subtotal >= freeThreshold
+  const freeShippingProgress = freeThreshold != null
+    ? Math.min(100, (subtotal / freeThreshold) * 100)
+    : 0
+
+  // Fetch route khi destination đổi (cần store coords để gọi OSRM)
+  useEffect(() => {
+    if (!destination || !store?.lat || !store?.lng) {
       setRoute(null)
       return
     }
@@ -85,23 +147,27 @@ export default function CheckoutPage() {
     const ctrl = new AbortController()
     routeAbortRef.current = ctrl
     setRouting(true)
-    fetchRoute(RESTAURANT, destination, ctrl.signal).then((r) => {
+    fetchRoute({ lat: store.lat, lng: store.lng }, destination, ctrl.signal).then(r => {
       if (ctrl.signal.aborted) return
       setRoute(r)
       setRouting(false)
     })
-    return () => {
-      ctrl.abort()
-    }
-  }, [destination])
+    return () => { ctrl.abort() }
+  }, [destination, store?.lat, store?.lng])
 
-  function onSelectAddress(r: NominatimResult) {
+  function onSelectAutocomplete(r: NominatimResult) {
     const lat = parseFloat(r.lat)
     const lng = parseFloat(r.lon)
     if (Number.isFinite(lat) && Number.isFinite(lng)) {
       setDestination({ lat, lng })
       setLocationError(null)
+      // Auto-fill postal/city từ Nominatim address details nếu có
+      const a = r.address ?? {}
+      if (a.postcode) setPostalCode(a.postcode)
+      const ct = a.city ?? a.town ?? a.village ?? a.suburb
+      if (ct) setCity(ct)
     }
+    setSavedAddrId(null)
   }
 
   function useCurrentLocation() {
@@ -119,8 +185,13 @@ export default function CheckoutPage() {
         const reverse = await reverseGeocode({ lat, lng })
         if (reverse) {
           setAddressText(formatNominatim(reverse))
+          const a = reverse.address ?? {}
+          if (a.postcode) setPostalCode(a.postcode)
+          const ct = a.city ?? a.town ?? a.village ?? a.suburb
+          if (ct) setCity(ct)
         }
         setLocating(false)
+        setSavedAddrId(null)
       },
       () => {
         setLocating(false)
@@ -130,31 +201,201 @@ export default function CheckoutPage() {
     )
   }
 
+  const [geocodingSaved, setGeocodingSaved] = useState(false)
+
+  async function onUseSavedAddress(a: SavedAddress) {
+    setSavedAddrId(a.id)
+    setName(a.recipient)
+    setPhone(a.phone)
+    setAddressText(a.line)
+    setCity(a.city)
+    setPostalCode(a.postalCode ?? '')
+    if (a.lat != null && a.lng != null) {
+      setDestination({ lat: a.lat, lng: a.lng })
+      return
+    }
+    // Saved address chưa có lat/lng (vd address legacy) → forward geocode để hiển thị
+    // map + tính ship preview. BE cũng sẽ geocode khi submit, nhưng FE cần để preview.
+    setGeocodingSaved(true)
+    const query = [a.line, a.postalCode, a.city, a.country].filter(Boolean).join(', ')
+    try {
+      const results = await searchAddress(query)
+      const hit = results[0]
+      if (hit) {
+        const lat = parseFloat(hit.lat)
+        const lng = parseFloat(hit.lon)
+        if (Number.isFinite(lat) && Number.isFinite(lng)) {
+          setDestination({ lat, lng })
+        } else {
+          setDestination(null)
+        }
+      } else {
+        setDestination(null)
+      }
+    } catch {
+      setDestination(null)
+    } finally {
+      setGeocodingSaved(false)
+    }
+  }
+
+  // Khi pick saved address mà chưa có lat/lng (vd address tạo từ register flow chưa
+  // bổ sung tọa độ), không bắt buộc destination ở FE — BE sẽ tự geocode từ address_id.
+  const locationOk = destination != null || savedAddrId != null
+
   const requiredOk =
     name.trim().length > 0 &&
     phone.trim().length > 0 &&
+    email.trim().length > 0 &&
     addressText.trim().length > 0 &&
-    destination != null &&
+    locationOk &&
     !outOfZone &&
     items.length > 0
 
+  // ─── Build payload chung ───
+  function buildOrderBody() {
+    const itemsWithIds = items.filter(i => i.dishId)
+    if (itemsWithIds.length === 0) {
+      throw new Error(t('checkout.error.cart_empty'))
+    }
+    return {
+      contact_name:  name.trim(),
+      contact_email: email.trim().toLowerCase(),
+      contact_phone: phone.trim(),
+      address_id:    savedAddrId ?? undefined,
+      address:       savedAddrId
+        ? undefined
+        : {
+            recipient:   name.trim(),
+            phone:       phone.trim(),
+            line:        [addressText.trim(), addressApt.trim()].filter(Boolean).join(', '),
+            city:        city.trim(),
+            country:     'DE',
+            postal_code: postalCode.trim() || undefined,
+            lat:         destination?.lat,
+            lng:         destination?.lng,
+          },
+      items: itemsWithIds.map(i => ({
+        dish_id:  i.dishId!,
+        quantity: i.quantity,
+        options:  i.optionId && i.valueId
+          ? [{ option_id: i.optionId, value_id: i.valueId }]
+          : [],
+        note:     i.note || undefined,
+      })),
+      payment_method: PAYMENT_API_MAP[payment],
+      customer_note:  note.trim() || undefined,
+    }
+  }
+
+  function mapErrorToMessage(e: unknown): string {
+    if (!(e instanceof ApiError)) return e instanceof Error ? e.message : t('checkout.error.generic')
+    switch (e.code) {
+      case 'OUT_OF_ZONE':       return t('checkout.warning.out_of_zone')
+                                  .replace('{{km}}',     String(e.vars?.distance_km ?? km ?? ''))
+                                  .replace('{{radius}}', String(e.vars?.radius_km ?? maxRadiusKm ?? ''))
+      case 'STORE_CLOSED':      return t('checkout.error.store_closed')
+      case 'ROUTING_FAILED':    return t('checkout.error.routing_failed')
+      case 'GEOCODE_FAILED':    return t('checkout.error.routing_failed')
+      case 'DISH_UNAVAILABLE':  return t('checkout.error.dish_unavailable')
+      default:                  return e.message || t('checkout.error.generic')
+    }
+  }
+
+  async function submitCustomer() {
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const body = buildOrderBody()
+      const res = await api<CreateOrderResponse>('/orders', {
+        method: 'POST',
+        body,
+        locale,
+      })
+      await clearCart()
+      router.push(`/orders/${res.order.code}`)
+    } catch (e) {
+      setSubmitError(mapErrorToMessage(e))
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
+  async function submitWithGuestToken(token: string) {
+    setSubmitting(true)
+    setSubmitError(null)
+    try {
+      const body = buildOrderBody()
+      const res = await api<CreateOrderResponse>('/orders', {
+        method: 'POST',
+        body,
+        guestToken: token,
+        locale,
+      })
+      // Guest: lưu permanent token để tra cứu sau
+      if (res.guestToken) saveOrderToken(res.order.code, res.guestToken)
+      await clearCart()
+      setShowOtp(false)
+      router.push(`/orders/${res.order.code}?token=${encodeURIComponent(res.guestToken ?? '')}`)
+    } catch (e) {
+      setSubmitError(mapErrorToMessage(e))
+      setShowOtp(false)
+    } finally {
+      setSubmitting(false)
+    }
+  }
+
   function placeOrder() {
     if (!requiredOk) return
-    setSubmitting(true)
-    // Mock submit — generate an id, clear cart, show success
-    setTimeout(() => {
-      const id = `sgw-${new Date().getFullYear()}-${Math.floor(Math.random() * 10000)
-        .toString()
-        .padStart(4, '0')}`
-      setSubmittedId(id)
-      clearCart()
-      setSubmitting(false)
-    }, 800)
+    setSubmitError(null)
+    if (user) {
+      void submitCustomer()
+    } else {
+      // Guest → mở OTP modal
+      setShowOtp(true)
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Loading store settings (BE source of truth)
+  if (storeLoading) {
+    return (
+      <>
+        <Header />
+        <main className="menu-page-bg min-h-screen pt-32 pb-24 text-center text-[#87867f] text-[14px]">
+          …
+        </main>
+        <Footer />
+      </>
+    )
+  }
+  if (storeError || !store) {
+    return (
+      <>
+        <Header />
+        <main className="menu-page-bg min-h-screen pt-32 pb-24">
+          <div className="max-w-xl mx-auto px-5 sm:px-6 text-center">
+            <div
+              className="rounded-2xl bg-[#faf9f5] py-16 px-6"
+              style={{ boxShadow: '0 0 0 1px #f0eee6' }}
+            >
+              <h1
+                className="font-display text-[#141413] text-[20px] font-medium"
+                style={{ lineHeight: 1.3 }}
+              >
+                {t('checkout.error.generic')}
+              </h1>
+            </div>
+          </div>
+        </main>
+        <Footer />
+      </>
+    )
   }
 
   // ─────────────────────────────────────────────
   // Empty cart fallback
-  if (items.length === 0 && !submittedId) {
+  if (items.length === 0) {
     return (
       <>
         <Header />
@@ -185,77 +426,12 @@ export default function CheckoutPage() {
   }
 
   // ─────────────────────────────────────────────
-  // Success state
-  if (submittedId) {
-    return (
-      <>
-        <Header />
-        <main className="menu-page-bg min-h-screen pt-32 pb-24">
-          <div className="max-w-xl mx-auto px-5 sm:px-6 text-center">
-            <div
-              className="rounded-2xl bg-[#faf9f5] py-12 px-6"
-              style={{ boxShadow: '0 0 0 1px #f0eee6' }}
-            >
-              <div className="mx-auto w-14 h-14 rounded-full bg-[#c96442] flex items-center justify-center mb-5">
-                <svg
-                  className="w-7 h-7 text-[#faf9f5]"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="3"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                >
-                  <path d="M5 12l5 5L20 7" />
-                </svg>
-              </div>
-              <h1
-                className="font-display text-[#141413] text-[32px] font-medium"
-                style={{ lineHeight: 1.2 }}
-              >
-                {t('checkout.success.title')}
-              </h1>
-              <p
-                className="text-[#5e5d59] text-[15px] mt-3 max-w-md mx-auto"
-                style={{ lineHeight: 1.6 }}
-              >
-                {t('checkout.success.body')}
-              </p>
-              <div
-                className="mt-6 inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#e8e6dc] text-[#4d4c48] text-[13px] font-medium"
-              >
-                <span className="font-display">#{submittedId.toUpperCase()}</span>
-              </div>
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                <Link
-                  href="/orders"
-                  className="bg-[#c96442] hover:bg-[#d97757] text-[#faf9f5] font-medium text-[14px] px-5 py-2.5 rounded-xl transition-colors"
-                >
-                  {t('checkout.success.view_order')}
-                </Link>
-                <Link
-                  href="/"
-                  className="bg-[#e8e6dc] hover:bg-[#f0eee6] text-[#4d4c48] font-medium text-[14px] px-5 py-2.5 rounded-xl transition-colors"
-                >
-                  {t('checkout.empty.cta')}
-                </Link>
-              </div>
-            </div>
-          </div>
-        </main>
-        <Footer />
-      </>
-    )
-  }
-
-  // ─────────────────────────────────────────────
   // Main form
   return (
     <>
       <Header />
       <main className="menu-page-bg min-h-screen pt-32 pb-32 lg:pb-24">
         <div className="max-w-6xl mx-auto px-5 sm:px-6">
-          {/* Page header */}
           <div className="mb-8">
             <div
               className="text-[10px] uppercase text-[#87867f] mb-3"
@@ -283,7 +459,7 @@ export default function CheckoutPage() {
                     <TextInput value={phone} onChange={setPhone} type="tel" />
                   </Field>
                   <div className="sm:col-span-2">
-                    <Field label={t('checkout.field.email')}>
+                    <Field label={t('checkout.field.email')} required>
                       <TextInput value={email} onChange={setEmail} type="email" />
                     </Field>
                   </div>
@@ -292,49 +468,73 @@ export default function CheckoutPage() {
 
               <FormCard step="②" title={t('checkout.section.address')}>
                 <div className="space-y-3">
-                  <div>
-                    <AddressAutocomplete
-                      value={addressText}
-                      onChangeText={(v) => {
-                        setAddressText(v)
-                        if (!v) setDestination(null)
-                      }}
-                      onSelect={onSelectAddress}
+                  {user ? (
+                    // Customer login: chỉ chọn từ saved addresses (auto pick default)
+                    <SavedAddressPicker
+                      selectedId={savedAddrId}
+                      onSelect={onUseSavedAddress}
                     />
-                    <div className="flex items-center justify-between mt-2">
-                      <button
-                        type="button"
-                        onClick={useCurrentLocation}
-                        disabled={locating}
-                        className="inline-flex items-center gap-1.5 text-[13px] text-[#c96442] hover:text-[#d97757] disabled:opacity-50 transition-colors"
-                      >
-                        <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="3" />
-                          <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
-                        </svg>
-                        {locating ? t('checkout.locating') : t('checkout.use_location')}
-                      </button>
-                      {locationError && (
-                        <span className="text-[12px] text-[#b53333]">{locationError}</span>
-                      )}
-                    </div>
-                  </div>
+                  ) : (
+                    // Guest: nhập inline (chưa có saved addresses)
+                    <>
+                      <div>
+                        <AddressAutocomplete
+                          value={addressText}
+                          onChangeText={(v) => {
+                            setAddressText(v)
+                            if (!v) setDestination(null)
+                          }}
+                          onSelect={onSelectAutocomplete}
+                        />
+                        <div className="flex items-center justify-between mt-2">
+                          <button
+                            type="button"
+                            onClick={useCurrentLocation}
+                            disabled={locating}
+                            className="inline-flex items-center gap-1.5 text-[13px] text-[#c96442] hover:text-[#d97757] disabled:opacity-50 transition-colors"
+                          >
+                            <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <circle cx="12" cy="12" r="3" />
+                              <path d="M12 2v3M12 19v3M2 12h3M19 12h3" />
+                            </svg>
+                            {locating ? t('checkout.locating') : t('checkout.use_location')}
+                          </button>
+                          {locationError && (
+                            <span className="text-[12px] text-[#b53333]">{locationError}</span>
+                          )}
+                        </div>
+                      </div>
 
-                  <Field label={t('checkout.field.address_apt')}>
-                    <TextInput value={addressApt} onChange={setAddressApt} />
-                  </Field>
+                      <div className="grid sm:grid-cols-3 gap-3">
+                        <Field label={t('checkout.field.address_apt')}>
+                          <TextInput value={addressApt} onChange={editAddressLine} />
+                        </Field>
+                        <Field label="PLZ">
+                          <TextInput value={postalCode} onChange={editPostal} />
+                        </Field>
+                        <Field label="Stadt">
+                          <TextInput value={city} onChange={editCity} />
+                        </Field>
+                      </div>
+                    </>
+                  )}
 
-                  {/* Map area */}
+                  {/* Map (chia sẻ cho cả 2 nhánh) */}
                   <div className="rounded-2xl overflow-hidden" style={{ minHeight: 300 }}>
-                    {destination ? (
+                    {destination && store?.lat != null && store?.lng != null ? (
                       <div className="relative">
                         <div style={{ height: 300 }}>
                           <CheckoutMap
+                            origin={{
+                              lat:     store.lat,
+                              lng:     store.lng,
+                              name:    store.name,
+                              address: store.address,
+                            }}
                             destination={destination}
                             routeGeometry={route?.geometry ?? null}
                           />
                         </div>
-                        {/* Distance pill overlay */}
                         <div
                           className="absolute top-3 left-3 inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-[#faf9f5] text-[13px]"
                           style={{ boxShadow: '0 0 0 1px #e8e6dc, 0 4px 24px rgba(0,0,0,0.05)' }}
@@ -354,6 +554,15 @@ export default function CheckoutPage() {
                           ) : (
                             <span className="text-[#87867f]">…</span>
                           )}
+                        </div>
+                      </div>
+                    ) : geocodingSaved ? (
+                      <div
+                        className="rounded-2xl bg-[#e8e6dc]/60 border-2 border-dashed border-[#e8e6dc] flex items-center justify-center text-center px-6"
+                        style={{ minHeight: 240 }}
+                      >
+                        <div className="text-[13px] text-[#5e5d59]">
+                          {t('checkout.saved_addresses.locating')}
                         </div>
                       </div>
                     ) : (
@@ -392,97 +601,54 @@ export default function CheckoutPage() {
                         color: '#b53333',
                       }}
                     >
-                      {t('checkout.warning.out_of_zone').replace(
-                        '{{km}}',
-                        km!.toFixed(1).replace('.', locale === 'de' ? ',' : '.'),
-                      )}
+                      {t('checkout.warning.out_of_zone')
+                        .replace('{{km}}',     km!.toFixed(1).replace('.', locale === 'de' ? ',' : '.'))
+                        .replace('{{radius}}', String(maxRadiusKm ?? ''))}
                     </div>
                   )}
                 </div>
               </FormCard>
 
-              <FormCard step="③" title={t('checkout.section.time')}>
-                <div className="space-y-2">
-                  <RadioCard
-                    selected={time === 'now'}
-                    onClick={() => setTime('now')}
-                    title={t('checkout.time.now')}
-                    desc={
-                      route
-                        ? `${t('checkout.time.now_eta')} · ${
-                            DELIVERY.kitchenPrepMinutes + Math.round(route.durationMinutes)
-                          } ${t('checkout.map.duration_min')}`
-                        : `${DELIVERY.kitchenPrepMinutes}+ ${t('checkout.map.duration_min')}`
-                    }
-                  />
-                  <RadioCard
-                    selected={time === 'scheduled'}
-                    onClick={() => setTime('scheduled')}
-                    title={t('checkout.time.scheduled')}
-                    desc={t('checkout.time.scheduled_help')}
-                  >
-                    {time === 'scheduled' && (
-                      <input
-                        type="datetime-local"
-                        value={scheduledAt}
-                        onChange={(e) => setScheduledAt(e.target.value)}
-                        className="mt-3 w-full px-3 py-2 rounded-xl bg-white text-[#141413] text-[14px] outline-none"
-                        style={{ boxShadow: '0 0 0 1px #e8e6dc' }}
-                      />
-                    )}
-                  </RadioCard>
-                </div>
-              </FormCard>
-
-              <FormCard step="④" title={t('checkout.section.payment')}>
-                <div className="space-y-2">
-                  <RadioCard
-                    selected={payment === 'card'}
-                    onClick={() => setPayment('card')}
-                    title={t('checkout.payment.card')}
-                    desc={t('checkout.payment.card_desc')}
-                    iconType="card"
-                  />
-                  <RadioCard
-                    selected={payment === 'paypal'}
-                    onClick={() => setPayment('paypal')}
-                    title={t('checkout.payment.paypal')}
-                    desc={t('checkout.payment.paypal_desc')}
-                    iconType="paypal"
-                  />
-                  <RadioCard
-                    selected={payment === 'bank'}
-                    onClick={() => setPayment('bank')}
-                    title={t('checkout.payment.bank')}
-                    desc={t('checkout.payment.bank_desc')}
-                    iconType="bank"
-                  >
-                    {payment === 'bank' && (
-                      <div className="mt-3 flex items-start gap-2.5 rounded-lg bg-[#faf9f5] px-3 py-2 text-[12px] text-[#5e5d59]" style={{ boxShadow: '0 0 0 1px #f0eee6' }}>
+              {/* Payment: chỉ bank QR cho MVP */}
+              <FormCard step="③" title={t('checkout.section.payment')}>
+                <div
+                  className="rounded-xl px-4 py-3"
+                  style={{ backgroundColor: '#e8e6dc', boxShadow: '0 0 0 2px #c96442' }}
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className="flex-shrink-0 mt-1 w-4 h-4 rounded-full border-2 border-[#c96442] bg-[#c96442]"
+                      style={{ boxShadow: 'inset 0 0 0 3px #faf9f5' }}
+                    />
+                    <div className="flex-1">
+                      <div className="font-medium text-[#141413] text-[14px] leading-tight">
+                        {t('checkout.payment.bank')}
+                      </div>
+                      <div className="text-[12px] text-[#87867f] mt-0.5">
+                        {t('checkout.payment.bank_desc')}
+                      </div>
+                      <div
+                        className="mt-3 flex items-start gap-2.5 rounded-lg bg-[#faf9f5] px-3 py-2 text-[12px] text-[#5e5d59]"
+                        style={{ boxShadow: '0 0 0 1px #f0eee6' }}
+                      >
                         <svg className="w-3.5 h-3.5 text-[#c96442] mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                           <circle cx="12" cy="12" r="10" />
                           <path d="M12 8v4M12 16h.01" />
                         </svg>
                         <span>{t('checkout.payment.bank_hint')}</span>
                       </div>
-                    )}
-                  </RadioCard>
-                  <RadioCard
-                    selected={payment === 'cash'}
-                    onClick={() => setPayment('cash')}
-                    title={t('checkout.payment.cash')}
-                    desc={t('checkout.payment.cash_desc')}
-                    iconType="cash"
-                  />
+                    </div>
+                  </div>
                 </div>
               </FormCard>
 
-              <FormCard step="⑤" title={t('checkout.section.note')}>
+              <FormCard step="④" title={t('checkout.section.note')}>
                 <textarea
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
                   placeholder={t('checkout.field.note_placeholder')}
                   rows={3}
+                  maxLength={500}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-white text-[#141413] text-[14px] placeholder:text-[#87867f] outline-none resize-none"
                   style={{ boxShadow: '0 0 0 1px #e8e6dc', lineHeight: 1.5 }}
                 />
@@ -494,144 +660,145 @@ export default function CheckoutPage() {
               className="lg:sticky lg:top-32 self-start rounded-2xl bg-[#faf9f5] p-5 sm:p-6"
               style={{ boxShadow: '0 0 0 1px #f0eee6' }}
             >
-                <div className="flex items-center gap-2.5 mb-4">
-                  <span className="w-7 h-7 rounded-full bg-[#e8e6dc] flex items-center justify-center text-[#4d4c48]">
-                    <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M6 2 4 6v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6l-2-4z" />
-                      <path d="M4 6h16" />
-                      <path d="M16 10a4 4 0 0 1-8 0" />
-                    </svg>
-                  </span>
-                  <h2
-                    className="font-display text-[#141413] text-[18px] font-medium"
-                    style={{ lineHeight: 1.2 }}
-                  >
-                    {t('checkout.summary.title')}
-                  </h2>
-                </div>
+              <div className="flex items-center gap-2.5 mb-4">
+                <span className="w-7 h-7 rounded-full bg-[#e8e6dc] flex items-center justify-center text-[#4d4c48]">
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M6 2 4 6v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V6l-2-4z" />
+                    <path d="M4 6h16" />
+                    <path d="M16 10a4 4 0 0 1-8 0" />
+                  </svg>
+                </span>
+                <h2 className="font-display text-[#141413] text-[18px] font-medium" style={{ lineHeight: 1.2 }}>
+                  {t('checkout.summary.title')}
+                </h2>
+              </div>
 
-                {/* items */}
-                <ul className="divide-y divide-[#f0eee6]">
-                  {items.map((item) => (
-                    <li key={item.cartId} className="flex items-center gap-3 py-2.5">
-                      <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-[#e8e6dc] flex-shrink-0">
-                        {item.image && (
-                          <Image
-                            src={item.image}
-                            alt={item.name}
-                            fill
-                            sizes="40px"
-                            className="object-cover"
-                          />
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-[13px] text-[#141413] font-medium leading-tight line-clamp-1">
-                          {item.name}
-                        </div>
-                        <div className="text-[12px] text-[#87867f]">
-                          × {item.quantity}
-                          {item.variantLabel && ` · ${item.variantLabel}`}
-                        </div>
-                      </div>
-                      <div className="text-[13px] text-[#141413] font-medium whitespace-nowrap">
-                        {formatEuro(item.price * item.quantity)}
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-
-                {/* breakdown */}
-                <div className="pt-4 mt-3 border-t border-[#f0eee6]">
-                  <div className="space-y-1.5 text-[14px]">
-                    <Row
-                      label={t('checkout.summary.subtotal')}
-                      value={formatEuro(subtotal)}
-                    />
-                    {km != null && (
-                      <Row
-                        label={t('checkout.summary.distance')}
-                        value={`${km.toFixed(1).replace('.', locale === 'de' ? ',' : '.')} km`}
-                        muted
-                      />
-                    )}
-                    <Row
-                      label={t('checkout.summary.shipping')}
-                      value={
-                        shipping == null
-                          ? t('checkout.summary.shipping_pending')
-                          : shipping === 0
-                          ? t('checkout.summary.shipping_free')
-                          : formatEuro(shipping)
-                      }
-                      accent={shipping === 0}
-                    />
-                  </div>
-
-                  {/* free shipping progress */}
-                  <div className="mt-4">
-                    <div className="h-1 rounded-full bg-[#e8e6dc] overflow-hidden">
-                      <div
-                        className="h-full bg-[#c96442] transition-all duration-500"
-                        style={{ width: `${freeShippingProgress}%` }}
-                      />
+              <ul className="divide-y divide-[#f0eee6]">
+                {items.map((item) => (
+                  <li key={item.cartId} className="flex items-center gap-3 py-2.5">
+                    <div className="relative w-10 h-10 rounded-lg overflow-hidden bg-[#e8e6dc] flex-shrink-0">
+                      {item.image && (
+                        <Image src={item.image} alt={item.name} fill sizes="40px" className="object-cover" />
+                      )}
                     </div>
-                    <div className="text-[11px] text-[#87867f] mt-1.5">
-                      {freeShippingUnlocked
-                        ? t('checkout.summary.free_shipping_unlocked')
-                        : t('checkout.summary.free_shipping_progress').replace(
-                            '{{amount}}',
-                            formatEuro(Math.max(0, freeShippingDelta)),
-                          )}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-[13px] text-[#141413] font-medium leading-tight line-clamp-1">
+                        {item.name}
+                      </div>
+                      <div className="text-[12px] text-[#87867f]">
+                        × {item.quantity}
+                        {item.variantLabel && ` · ${item.variantLabel}`}
+                      </div>
                     </div>
-                  </div>
-                </div>
+                    <div className="text-[13px] text-[#141413] font-medium whitespace-nowrap">
+                      {formatEuro(item.price * item.quantity)}
+                    </div>
+                  </li>
+                ))}
+              </ul>
 
-                {/* total row */}
-                <div
-                  className="pt-4 mt-4 flex items-baseline justify-between border-t border-[#f0eee6]"
-                >
-                  <span className="font-display text-[#141413] text-[16px] font-medium">
-                    {t('checkout.summary.total')}
-                  </span>
-                  <span className="font-display text-[#141413] text-[24px] font-medium">
-                    {formatEuro(total)}
-                  </span>
-                </div>
-
-                {/* CTA */}
-                <button
-                  type="button"
-                  disabled={!requiredOk || submitting}
-                  onClick={placeOrder}
-                  className="mt-4 w-full bg-[#c96442] hover:bg-[#d97757] disabled:bg-[#e8e6dc] disabled:text-[#87867f] disabled:cursor-not-allowed text-[#faf9f5] font-medium text-[15px] py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
-                  style={{ boxShadow: requiredOk && !submitting ? '0 0 0 1px #c96442' : 'none' }}
-                >
-                  {submitting ? t('checkout.cta.placing_order') : t('checkout.cta.place_order')}
-                  {!submitting && (
-                    <span className="opacity-80">· {formatEuro(total)}</span>
+              <div className="pt-4 mt-3 border-t border-[#f0eee6]">
+                <div className="space-y-1.5 text-[14px]">
+                  <Row label={t('checkout.summary.subtotal')} value={formatEuro(subtotal)} />
+                  {km != null && (
+                    <Row
+                      label={t('checkout.summary.distance')}
+                      value={`${km.toFixed(1).replace('.', locale === 'de' ? ',' : '.')} km`}
+                      muted
+                    />
                   )}
-                </button>
+                  <Row
+                    label={t('checkout.summary.shipping')}
+                    value={
+                      shipping == null
+                        ? t('checkout.summary.shipping_pending')
+                        : shipping === 0
+                        ? t('checkout.summary.shipping_free')
+                        : formatEuro(shipping)
+                    }
+                    accent={shipping === 0}
+                  />
+                  {/* Formula transparency (E): khách nhìn rõ vì sao có phí này */}
+                  {shipping != null && km != null && shippingConfig && (
+                    <div className="text-[11px] text-[#87867f]" style={{ lineHeight: 1.5 }}>
+                      {shipping === 0 && freeThreshold != null
+                        ? t('checkout.summary.shipping_free_reason')
+                            .replace('{{threshold}}', formatEuro(freeThreshold))
+                        : t('checkout.summary.shipping_formula')
+                            .replace('{{km}}',   km.toFixed(1).replace('.', locale === 'de' ? ',' : '.'))
+                            .replace('{{perKm}}', shippingConfig.perKm.toString().replace('.', locale === 'de' ? ',' : '.'))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="mt-4">
+                  <div className="h-1 rounded-full bg-[#e8e6dc] overflow-hidden">
+                    <div
+                      className="h-full bg-[#c96442] transition-all duration-500"
+                      style={{ width: `${freeShippingProgress}%` }}
+                    />
+                  </div>
+                  <div className="text-[11px] text-[#87867f] mt-1.5">
+                    {freeShippingUnlocked
+                      ? t('checkout.summary.free_shipping_unlocked')
+                      : t('checkout.summary.free_shipping_progress').replace(
+                          '{{amount}}',
+                          formatEuro(Math.max(0, freeShippingDelta)),
+                        )}
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 mt-4 flex items-baseline justify-between border-t border-[#f0eee6]">
+                <span className="font-display text-[#141413] text-[16px] font-medium">
+                  {t('checkout.summary.total')}
+                </span>
+                <span className="font-display text-[#141413] text-[24px] font-medium">
+                  {formatEuro(total)}
+                </span>
+              </div>
+
+              {submitError && (
+                <div
+                  className="mt-3 rounded-xl px-3.5 py-2.5 text-[13px]"
+                  style={{ backgroundColor: '#fef3f2', boxShadow: '0 0 0 1px #f4cdca', color: '#b53333' }}
+                >
+                  {submitError}
+                </div>
+              )}
+
+              <button
+                type="button"
+                disabled={!requiredOk || submitting}
+                onClick={placeOrder}
+                className="mt-4 w-full bg-[#c96442] hover:bg-[#d97757] disabled:bg-[#e8e6dc] disabled:text-[#87867f] disabled:cursor-not-allowed text-[#faf9f5] font-medium text-[15px] py-3 rounded-xl transition-colors flex items-center justify-center gap-2"
+                style={{ boxShadow: requiredOk && !submitting ? '0 0 0 1px #c96442' : 'none' }}
+              >
+                {submitting ? t('checkout.cta.placing_order') : t('checkout.cta.place_order')}
+                {!submitting && (<span className="opacity-80">· {formatEuro(total)}</span>)}
+              </button>
             </section>
           </div>
         </div>
       </main>
       <Footer />
+
+      {showOtp && !user && (
+        <GuestOtpModal
+          email={email.trim().toLowerCase()}
+          onVerified={async (token) => {
+            await submitWithGuestToken(token)
+          }}
+          onClose={() => setShowOtp(false)}
+        />
+      )}
     </>
   )
 }
 
-// ──────────────── helper components ────────────────
+// ──────────────── helper components (unchanged) ────────────────
 
-function FormCard({
-  step,
-  title,
-  children,
-}: {
-  step: string
-  title: string
-  children: React.ReactNode
-}) {
+function FormCard({ step, title, children }: { step: string; title: string; children: React.ReactNode }) {
   return (
     <section
       className="rounded-2xl bg-[#faf9f5] p-5 sm:p-6"
@@ -644,10 +811,7 @@ function FormCard({
         >
           {step}
         </span>
-        <h2
-          className="font-display text-[#141413] text-[18px] font-medium"
-          style={{ lineHeight: 1.2 }}
-        >
+        <h2 className="font-display text-[#141413] text-[18px] font-medium" style={{ lineHeight: 1.2 }}>
           {title}
         </h2>
       </div>
@@ -656,15 +820,7 @@ function FormCard({
   )
 }
 
-function Field({
-  label,
-  required,
-  children,
-}: {
-  label: string
-  required?: boolean
-  children: React.ReactNode
-}) {
+function Field({ label, required, children }: { label: string; required?: boolean; children: React.ReactNode }) {
   return (
     <label className="block">
       <span
@@ -680,14 +836,8 @@ function Field({
 }
 
 function TextInput({
-  value,
-  onChange,
-  type = 'text',
-}: {
-  value: string
-  onChange: (v: string) => void
-  type?: string
-}) {
+  value, onChange, type = 'text',
+}: { value: string; onChange: (v: string) => void; type?: string }) {
   return (
     <input
       type={type}
@@ -701,109 +851,17 @@ function TextInput({
   )
 }
 
-function RadioCard({
-  selected,
-  onClick,
-  title,
-  desc,
-  iconType,
-  children,
-}: {
-  selected: boolean
-  onClick: () => void
-  title: string
-  desc?: string
-  iconType?: 'card' | 'paypal' | 'bank' | 'cash'
-  children?: React.ReactNode
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={`w-full text-left rounded-xl px-4 py-3 transition-colors ${
-        selected ? 'bg-[#e8e6dc]' : 'bg-white hover:bg-[#f0eee6]'
-      }`}
-      style={{
-        boxShadow: selected ? '0 0 0 2px #c96442' : '0 0 0 1px #e8e6dc',
-      }}
-    >
-      <div className="flex items-center gap-3">
-        <span
-          className={`flex-shrink-0 w-4 h-4 rounded-full border-2 ${
-            selected ? 'border-[#c96442] bg-[#c96442]' : 'border-[#87867f] bg-transparent'
-          }`}
-          style={{
-            boxShadow: selected ? 'inset 0 0 0 3px #faf9f5' : 'none',
-          }}
-        />
-        {iconType && <PaymentIcon type={iconType} />}
-        <div className="flex-1 min-w-0">
-          <div className="font-medium text-[#141413] text-[14px] leading-tight">{title}</div>
-          {desc && <div className="text-[12px] text-[#87867f] mt-0.5">{desc}</div>}
-        </div>
-      </div>
-      {children}
-    </button>
-  )
-}
-
-function PaymentIcon({ type }: { type: 'card' | 'paypal' | 'bank' | 'cash' }) {
-  if (type === 'card') {
-    return (
-      <svg className="w-5 h-5 text-[#5e5d59]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="6" width="20" height="13" rx="2" />
-        <path d="M2 11h20" />
-      </svg>
-    )
-  }
-  if (type === 'paypal') {
-    return (
-      <svg className="w-5 h-5 text-[#5e5d59]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M7 19h3l1-5h3a4 4 0 0 0 4-4 3 3 0 0 0-3-3H8L7 19z" />
-        <path d="M5 21h3l3-15h4a3 3 0 0 1 3 3" />
-      </svg>
-    )
-  }
-  if (type === 'bank') {
-    return (
-      <svg className="w-5 h-5 text-[#5e5d59]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7" rx="1" />
-        <rect x="14" y="3" width="7" height="7" rx="1" />
-        <rect x="3" y="14" width="7" height="7" rx="1" />
-        <path d="M14 14h3v3M21 14v3M14 18v3M17 21h4M21 14h-4" />
-      </svg>
-    )
-  }
-  return (
-    <svg className="w-5 h-5 text-[#5e5d59]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="2" y="7" width="20" height="12" rx="2" />
-      <circle cx="12" cy="13" r="2.5" />
-      <path d="M6 13h.01M18 13h.01" />
-    </svg>
-  )
-}
-
 function Row({
-  label,
-  value,
-  muted,
-  accent,
-}: {
-  label: string
-  value: string
-  muted?: boolean
-  accent?: boolean
-}) {
+  label, value, muted, accent,
+}: { label: string; value: string; muted?: boolean; accent?: boolean }) {
   return (
     <div className="flex justify-between">
       <span className={muted ? 'text-[#87867f]' : 'text-[#5e5d59]'}>{label}</span>
       <span
         className={
-          accent
-            ? 'text-[#c96442] font-medium'
-            : muted
-            ? 'text-[#87867f]'
-            : 'text-[#141413]'
+          accent ? 'text-[#c96442] font-medium' :
+          muted  ? 'text-[#87867f]' :
+                   'text-[#141413]'
         }
       >
         {value}

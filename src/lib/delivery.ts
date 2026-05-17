@@ -1,18 +1,3 @@
-export const RESTAURANT = {
-  name: 'Sai Gon Wok',
-  address: 'Kanalstraße 10, 70182 Stuttgart',
-  // Approximate coordinates for Kanalstraße 10, 70182 Stuttgart
-  lat: 48.7843,
-  lng: 9.1928,
-}
-
-export const DELIVERY = {
-  pricePerKm: 2,
-  freeShippingThreshold: 25,
-  maxRadiusKm: 15,
-  kitchenPrepMinutes: 25,
-}
-
 export interface LatLng {
   lat: number
   lng: number
@@ -24,11 +9,31 @@ export interface RouteResult {
   geometry: [number, number][] // [lat, lng] pairs
 }
 
-/** Compute shipping cost from km and subtotal. Free if subtotal hits the threshold. */
-export function computeShipping(km: number | null, subtotal: number): number | null {
-  if (km == null) return null
-  if (subtotal >= DELIVERY.freeShippingThreshold) return 0
-  return Math.ceil(km) * DELIVERY.pricePerKm
+/** Cấu hình tính phí — đẩy từ store_settings xuống qua useStoreSettings(). */
+export interface ShippingConfig {
+  /** € / km */
+  perKm:             number
+  /** Subtotal threshold để miễn phí ship (null = không bao giờ free) */
+  freeShipThreshold: number | null
+  /** Phí ship base (cộng vào trước perKm) */
+  baseFee:           number
+}
+
+/**
+ * Tính phí ship preview (BE sẽ recompute lúc submit để chốt chính xác).
+ * Trả null nếu chưa có km. Trùng công thức với backend pricing.ts:
+ *   subtotal ≥ threshold → 0
+ *   else                  → baseFee + km * perKm  (round 2)
+ */
+export function computeShipping(
+  km:       number | null,
+  subtotal: number,
+  cfg:      ShippingConfig | null,
+): number | null {
+  if (km == null || !cfg) return null
+  if (cfg.freeShipThreshold !== null && subtotal >= cfg.freeShipThreshold) return 0
+  const raw = cfg.baseFee + km * cfg.perKm
+  return Math.round(raw * 100) / 100
 }
 
 /** Format euro amount in DE/EN style with comma. */
@@ -36,25 +41,37 @@ export function formatEuro(amount: number): string {
   return `${amount.toFixed(2).replace('.', ',')} €`
 }
 
-/** Fetch a route from the public OSRM demo server. Returns null on failure. */
+interface OsrmRouteRaw {
+  distance: number
+  duration: number
+  geometry?: { coordinates?: [number, number][] }
+}
+
+/**
+ * Fetch route từ OSRM với chiến lược chống "ăn gian":
+ * - Request `alternatives=true` → OSRM trả tối đa 3 tuyến
+ * - Pick tuyến có DISTANCE ngắn nhất (cùng thuật toán với backend)
+ * - Polyline + km + duration đều của tuyến rẻ nhất → FE preview khớp với BE recompute
+ */
 export async function fetchRoute(
   origin: LatLng,
   dest: LatLng,
   signal?: AbortSignal,
 ): Promise<RouteResult | null> {
-  const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson`
+  const url = `https://router.project-osrm.org/route/v1/driving/${origin.lng},${origin.lat};${dest.lng},${dest.lat}?overview=full&geometries=geojson&alternatives=true`
   try {
     const res = await fetch(url, { signal })
     if (!res.ok) return null
-    const data = await res.json()
-    const route = data?.routes?.[0]
-    if (!route) return null
-    const coords = route.geometry?.coordinates as [number, number][] | undefined
+    const data = await res.json() as { routes?: OsrmRouteRaw[] }
+    const routes = data.routes ?? []
+    if (routes.length === 0) return null
+    const best = routes.reduce((a, b) => (a.distance <= b.distance ? a : b))
+    const coords = best.geometry?.coordinates
     if (!coords) return null
     return {
-      distanceKm: route.distance / 1000,
-      durationMinutes: route.duration / 60,
-      geometry: coords.map(([lng, lat]) => [lat, lng] as [number, number]),
+      distanceKm:      best.distance / 1000,
+      durationMinutes: best.duration / 60,
+      geometry:        coords.map(([lng, lat]) => [lat, lng] as [number, number]),
     }
   } catch {
     return null

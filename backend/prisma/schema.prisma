@@ -1,0 +1,511 @@
+// Sai Gon Wok — Prisma schema mapping MySQL DB
+// Generated to match schema.sql (xem DATABASE.md để biết chi tiết).
+// Sau khi đổi file này, chạy: npx prisma generate
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================
+// 1. USERS & AUTH
+// ============================================================
+
+enum Role {
+  customer
+  staff
+  admin
+}
+
+model User {
+  id              BigInt    @id @default(autoincrement())
+  email           String    @unique @db.VarChar(191)
+  phone           String?   @db.VarChar(20)
+  passwordHash    String?   @map("password_hash") @db.VarChar(255)
+  fullName        String    @map("full_name") @db.VarChar(100)
+  role            Role      @default(customer)
+  emailVerifiedAt DateTime? @map("email_verified_at")
+  isActive        Boolean   @default(true) @map("is_active")
+  lastLoginAt     DateTime? @map("last_login_at")
+  createdAt       DateTime  @default(now()) @map("created_at")
+  updatedAt       DateTime  @updatedAt @map("updated_at")
+
+  addresses              Address[]
+  cart                   Cart?
+  orders                 Order[]              @relation("OrderOwner")
+  confirmedPayments      Order[]              @relation("OrderPaymentConfirmer")
+  cancelledOrders        Order[]              @relation("OrderCanceller")
+  statusHistoryActions   OrderStatusHistory[]
+  auditLogs              AuditLog[]
+  notifications          Notification[]
+  notificationReads      NotificationRead[]
+
+  @@index([role, isActive], name: "idx_role_active")
+  @@map("users")
+}
+
+// ============================================================
+// 2. ADDRESSES
+// ============================================================
+
+model Address {
+  id         BigInt   @id @default(autoincrement())
+  userId     BigInt   @map("user_id")
+  recipient  String   @db.VarChar(100)
+  phone      String   @db.VarChar(20)
+  line       String   @db.VarChar(255)
+  ward       String?  @db.VarChar(100)
+  district   String?  @db.VarChar(100)
+  city       String   @db.VarChar(100)
+  country    String   @default("DE") @db.VarChar(2)
+  postalCode String?  @map("postal_code") @db.VarChar(20)
+  lat        Decimal? @db.Decimal(10, 7)
+  lng        Decimal? @db.Decimal(10, 7)
+  note       String?  @db.VarChar(255)
+  isDefault  Boolean  @default(false) @map("is_default")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isDefault], name: "idx_user_default")
+  @@map("addresses")
+}
+
+// ============================================================
+// 3. EMAIL OTP
+// ============================================================
+
+enum OtpPurpose {
+  guest_checkout
+  login
+  register
+  reset_password
+}
+
+model EmailOtp {
+  id           BigInt     @id @default(autoincrement())
+  email        String     @db.VarChar(191)
+  codeHash     String     @map("code_hash") @db.VarChar(255)
+  purpose      OtpPurpose
+  attempts     Int        @default(0) @db.UnsignedTinyInt
+  maxAttempts  Int        @default(5) @map("max_attempts") @db.UnsignedTinyInt
+  expiresAt    DateTime   @map("expires_at")
+  consumedAt   DateTime?  @map("consumed_at")
+  ipAddress    String?    @map("ip_address") @db.VarChar(45)
+  userAgent    String?    @map("user_agent") @db.VarChar(255)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@index([email, purpose, expiresAt], name: "idx_email_purpose")
+  @@index([expiresAt], name: "idx_cleanup")
+  @@map("email_otps")
+}
+
+// ============================================================
+// 4. CATEGORIES
+// ============================================================
+
+model Category {
+  id            BigInt   @id @default(autoincrement())
+  slug          String   @unique @db.VarChar(100)
+  nameVi        String   @map("name_vi") @db.VarChar(150)
+  nameEn        String?  @map("name_en") @db.VarChar(150)
+  descriptionVi String?  @map("description_vi") @db.Text
+  descriptionEn String?  @map("description_en") @db.Text
+  imageUrl      String?  @map("image_url") @db.VarChar(500)
+  displayOrder  Int      @default(0) @map("display_order")
+  isActive      Boolean  @default(true) @map("is_active")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  dishes Dish[]
+
+  @@index([isActive, displayOrder], name: "idx_active_order")
+  @@map("categories")
+}
+
+// ============================================================
+// 5. DISHES
+// ============================================================
+
+model Dish {
+  id            BigInt   @id @default(autoincrement())
+  categoryId    BigInt   @map("category_id")
+  slug          String   @unique @db.VarChar(150)
+  nameVi        String   @map("name_vi") @db.VarChar(200)
+  nameEn        String?  @map("name_en") @db.VarChar(200)
+  descriptionVi String?  @map("description_vi") @db.Text
+  descriptionEn String?  @map("description_en") @db.Text
+  price         Decimal  @db.Decimal(12, 2)
+  currency      String   @default("EUR") @db.VarChar(3)
+  imageUrl      String?  @map("image_url") @db.VarChar(500)
+  isAvailable   Boolean  @default(true) @map("is_available")
+  isFeatured    Boolean  @default(false) @map("is_featured")
+  prepTimeMin   Int?     @map("prep_time_min")
+  calories      Int?
+  spicyLevel    Int      @default(0) @map("spicy_level") @db.TinyInt
+  displayOrder  Int      @default(0) @map("display_order")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+
+  category   Category     @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  options    DishOption[]
+  orderItems OrderItem[]
+  cartItems  CartItem[]
+
+  @@index([categoryId, isAvailable, displayOrder], name: "idx_category_avail")
+  @@index([isFeatured, isAvailable], name: "idx_featured")
+  @@map("dishes")
+}
+
+// ============================================================
+// 6. DISH OPTIONS
+// ============================================================
+
+enum DishOptionType {
+  single
+  multi
+}
+
+model DishOption {
+  id           BigInt         @id @default(autoincrement())
+  dishId       BigInt         @map("dish_id")
+  nameVi       String         @map("name_vi") @db.VarChar(100)
+  nameEn       String?        @map("name_en") @db.VarChar(100)
+  type         DishOptionType @default(single)
+  isRequired   Boolean        @default(false) @map("is_required")
+  displayOrder Int            @default(0) @map("display_order")
+
+  dish   Dish              @relation(fields: [dishId], references: [id], onDelete: Cascade)
+  values DishOptionValue[]
+
+  @@index([dishId, displayOrder], name: "idx_dish")
+  @@map("dish_options")
+}
+
+model DishOptionValue {
+  id           BigInt  @id @default(autoincrement())
+  dishOptionId BigInt  @map("dish_option_id")
+  labelVi      String  @map("label_vi") @db.VarChar(100)
+  labelEn      String? @map("label_en") @db.VarChar(100)
+  priceDelta   Decimal @default(0) @map("price_delta") @db.Decimal(10, 2)
+  displayOrder Int     @default(0) @map("display_order")
+  isActive     Boolean @default(true) @map("is_active")
+
+  dishOption DishOption @relation(fields: [dishOptionId], references: [id], onDelete: Cascade)
+
+  @@index([dishOptionId, displayOrder], name: "idx_option")
+  @@map("dish_option_values")
+}
+
+// ============================================================
+// 7. PROMOTIONS
+// ============================================================
+
+enum PromotionType {
+  percent
+  fixed
+  free_ship
+}
+
+model Promotion {
+  id            BigInt        @id @default(autoincrement())
+  code          String        @unique @db.VarChar(50)
+  description   String?       @db.VarChar(255)
+  type          PromotionType
+  value         Decimal       @db.Decimal(12, 2)
+  minOrder      Decimal       @default(0) @map("min_order") @db.Decimal(12, 2)
+  maxDiscount   Decimal?      @map("max_discount") @db.Decimal(12, 2)
+  startsAt      DateTime?     @map("starts_at")
+  endsAt        DateTime?     @map("ends_at")
+  usageLimit    Int?          @map("usage_limit")
+  perUserLimit  Int?          @map("per_user_limit")
+  usedCount     Int           @default(0) @map("used_count")
+  isActive      Boolean       @default(true) @map("is_active")
+  createdAt     DateTime      @default(now()) @map("created_at")
+  updatedAt     DateTime      @updatedAt @map("updated_at")
+
+  orders Order[]
+
+  @@index([isActive, startsAt, endsAt], name: "idx_active_window")
+  @@map("promotions")
+}
+
+// ============================================================
+// 8. ORDERS
+// ============================================================
+
+enum OrderStatus {
+  pending_payment
+  paid
+  preparing
+  delivering
+  completed
+  cancelled
+}
+
+enum PaymentMethod {
+  cash_on_delivery
+  paypal
+  bank_qr_image
+}
+
+model Order {
+  id                     BigInt        @id @default(autoincrement())
+  code                   String        @unique @db.VarChar(20)
+  userId                 BigInt?       @map("user_id")
+
+  // Contact (bắt buộc, kể cả guest)
+  contactName            String        @map("contact_name") @db.VarChar(100)
+  contactEmail           String        @map("contact_email") @db.VarChar(191)
+  contactPhone           String        @map("contact_phone") @db.VarChar(20)
+  emailVerifiedAt        DateTime?     @map("email_verified_at")
+
+  // Address snapshot
+  addressSnapshot        Json          @map("address_snapshot")
+
+  // Money & delivery
+  subtotal               Decimal       @db.Decimal(12, 2)
+  deliveryFee            Decimal       @default(0) @map("delivery_fee") @db.Decimal(12, 2)
+  distanceKm             Decimal?      @map("distance_km") @db.Decimal(6, 2)
+  durationMinutes        Int?          @map("duration_minutes")
+  deliveryFeeBreakdown   Json?         @map("delivery_fee_breakdown")
+  discount               Decimal       @default(0) @db.Decimal(12, 2)
+  total                  Decimal       @db.Decimal(12, 2)
+  currency               String        @default("EUR") @db.VarChar(3)
+  promotionId            BigInt?       @map("promotion_id")
+  promotionCodeSnapshot  String?       @map("promotion_code_snapshot") @db.VarChar(50)
+
+  // Status
+  status                 OrderStatus   @default(pending_payment)
+
+  // Payment
+  paymentMethod          PaymentMethod @map("payment_method")
+  paymentReference       String?       @map("payment_reference") @db.VarChar(100)
+  bankTxId               String?       @map("bank_tx_id") @db.VarChar(100)
+  paidAt                 DateTime?     @map("paid_at")
+  paidConfirmedBy        BigInt?       @map("paid_confirmed_by")
+
+  // Other
+  customerNote           String?       @map("customer_note") @db.VarChar(500)
+  cancelledReason        String?       @map("cancelled_reason") @db.VarChar(255)
+  cancelledAt            DateTime?     @map("cancelled_at")
+  cancelledBy            BigInt?       @map("cancelled_by")
+  estimatedReadyAt       DateTime?     @map("estimated_ready_at")
+  deliveredAt            DateTime?     @map("delivered_at")
+  scheduledAt            DateTime?     @map("scheduled_at")
+
+  createdAt              DateTime      @default(now()) @map("created_at")
+  updatedAt              DateTime      @updatedAt @map("updated_at")
+
+  user                User?                 @relation("OrderOwner",            fields: [userId],          references: [id], onDelete: SetNull)
+  paymentConfirmer    User?                 @relation("OrderPaymentConfirmer", fields: [paidConfirmedBy], references: [id], onDelete: SetNull)
+  canceller           User?                 @relation("OrderCanceller",        fields: [cancelledBy],     references: [id], onDelete: SetNull)
+  promotion           Promotion?            @relation(                         fields: [promotionId],     references: [id], onDelete: SetNull)
+  items               OrderItem[]
+  statusHistory       OrderStatusHistory[]
+
+  @@index([status, createdAt],       name: "idx_status_created")
+  @@index([userId, createdAt],       name: "idx_user_created")
+  @@index([contactEmail, createdAt], name: "idx_email_lookup")
+  @@index([contactPhone, createdAt], name: "idx_phone_lookup")
+  @@map("orders")
+}
+
+// ============================================================
+// 9. ORDER ITEMS
+// ============================================================
+
+model OrderItem {
+  id           BigInt  @id @default(autoincrement())
+  orderId      BigInt  @map("order_id")
+  dishId       BigInt  @map("dish_id")
+  dishName     String  @map("dish_name") @db.VarChar(200)
+  dishImageUrl String? @map("dish_image_url") @db.VarChar(500)
+  unitPrice    Decimal @map("unit_price") @db.Decimal(12, 2)
+  quantity     Int
+  optionsJson  Json?   @map("options_json")
+  lineTotal    Decimal @map("line_total") @db.Decimal(12, 2)
+  note         String? @db.VarChar(255)
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  dish  Dish  @relation(fields: [dishId],  references: [id], onDelete: Restrict)
+
+  @@index([orderId], name: "idx_order")
+  @@map("order_items")
+}
+
+// ============================================================
+// 10. ORDER STATUS HISTORY
+// ============================================================
+
+enum OrderHistorySource {
+  customer
+  staff
+  admin
+  system
+  webhook
+}
+
+model OrderStatusHistory {
+  id         BigInt              @id @default(autoincrement())
+  orderId    BigInt              @map("order_id")
+  fromStatus String?             @map("from_status") @db.VarChar(30)
+  toStatus   String              @map("to_status") @db.VarChar(30)
+  changedBy  BigInt?             @map("changed_by")
+  source     OrderHistorySource  @default(system)
+  note       String?             @db.VarChar(255)
+  createdAt  DateTime            @default(now()) @map("created_at")
+
+  order Order @relation(fields: [orderId],   references: [id], onDelete: Cascade)
+  user  User? @relation(fields: [changedBy], references: [id], onDelete: SetNull)
+
+  @@index([orderId, createdAt], name: "idx_order_time")
+  @@map("order_status_history")
+}
+
+// ============================================================
+// 11. STORE SETTINGS (single row, id=1)
+// ============================================================
+
+model StoreSettings {
+  id                   Int      @id @default(1)
+  name                 String   @db.VarChar(150)
+  hotline              String?  @db.VarChar(20)
+  email                String?  @db.VarChar(150)
+  address              String?  @db.VarChar(255)
+  lat                  Decimal? @db.Decimal(10, 7)
+  lng                  Decimal? @db.Decimal(10, 7)
+  openHoursJson        Json?    @map("open_hours_json")
+  isOpen               Boolean  @default(true) @map("is_open")
+  closedMessage        String?  @map("closed_message") @db.VarChar(255)
+
+  // Payment
+  paypalEmail          String?  @map("paypal_email") @db.VarChar(191)
+  paypalMeLink         String?  @map("paypal_me_link") @db.VarChar(255)
+  bankQrImageUrl       String?  @map("bank_qr_image_url") @db.VarChar(500)
+  bankAccountName      String?  @map("bank_account_name") @db.VarChar(100)
+  bankAccountNo        String?  @map("bank_account_no") @db.VarChar(50)
+  bankName             String?  @map("bank_name") @db.VarChar(100)
+
+  // Delivery
+  deliveryRadiusKm     Decimal  @default(15) @map("delivery_radius_km") @db.Decimal(5, 2)
+  deliveryBaseFee      Decimal  @default(0) @map("delivery_base_fee") @db.Decimal(10, 2)
+  deliveryPerKm        Decimal  @default(2.00) @map("delivery_per_km") @db.Decimal(10, 2)
+  freeShipThreshold    Decimal? @default(25.00) @map("free_ship_threshold") @db.Decimal(10, 2)
+  kitchenPrepMinutes   Int      @default(25) @map("kitchen_prep_minutes")
+  routingProvider      String   @default("osrm") @map("routing_provider") @db.VarChar(30)
+
+  defaultCurrency      String   @default("EUR") @map("default_currency") @db.VarChar(3)
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@map("store_settings")
+}
+
+// ============================================================
+// 11b. CART (1-1 với customer) + CART ITEMS
+// ============================================================
+
+model Cart {
+  id        BigInt   @id @default(autoincrement())
+  userId    BigInt   @unique @map("user_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt      @map("updated_at")
+
+  user  User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items CartItem[]
+
+  @@map("carts")
+}
+
+model CartItem {
+  id                BigInt   @id @default(autoincrement())
+  cartId            BigInt   @map("cart_id")
+  dishId            BigInt   @map("dish_id")
+  quantity          Int      @default(1)
+  optionsJson       Json?    @map("options_json")
+  optionsHash       String   @default("") @map("options_hash") @db.VarChar(64)
+  snapshotUnitPrice Decimal  @map("snapshot_unit_price") @db.Decimal(12, 2)
+  note              String?  @db.VarChar(255)
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt      @map("updated_at")
+
+  cart Cart @relation(fields: [cartId], references: [id], onDelete: Cascade)
+  dish Dish @relation(fields: [dishId], references: [id], onDelete: Cascade)
+
+  @@unique([cartId, dishId, optionsHash], name: "uniq_cart_dish_options")
+  @@index([cartId], name: "idx_cart")
+  @@map("cart_items")
+}
+
+// ============================================================
+// 11.7. NOTIFICATIONS + READS
+// ============================================================
+
+enum NotificationType {
+  order_created
+  order_status_changed
+  order_cancelled
+  payment_received
+  low_stock
+  new_customer
+  system
+}
+
+model Notification {
+  id         BigInt           @id @default(autoincrement())
+  userId     BigInt?          @map("user_id")
+  type       NotificationType
+  metadata   Json?
+  entityType String?          @map("entity_type") @db.VarChar(50)
+  entityId   BigInt?          @map("entity_id")
+  actionUrl  String?          @map("action_url") @db.VarChar(500)
+  createdAt  DateTime         @default(now()) @map("created_at")
+
+  user  User?              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  reads NotificationRead[]
+
+  @@index([userId, createdAt],     name: "idx_user_created")
+  @@index([type,   createdAt],     name: "idx_type_created")
+  @@index([entityType, entityId],  name: "idx_entity")
+  @@map("notifications")
+}
+
+model NotificationRead {
+  notificationId BigInt   @map("notification_id")
+  userId         BigInt   @map("user_id")
+  readAt         DateTime @default(now()) @map("read_at")
+
+  notification Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId],         references: [id], onDelete: Cascade)
+
+  @@id([notificationId, userId])
+  @@index([userId, readAt], name: "idx_user_read")
+  @@map("notification_reads")
+}
+
+// ============================================================
+// 12. AUDIT LOGS
+// ============================================================
+
+model AuditLog {
+  id         BigInt   @id @default(autoincrement())
+  actorId    BigInt?  @map("actor_id")
+  actorRole  String?  @map("actor_role") @db.VarChar(30)
+  action     String   @db.VarChar(100)
+  entityType String   @map("entity_type") @db.VarChar(50)
+  entityId   BigInt?  @map("entity_id")
+  diffJson   Json?    @map("diff_json")
+  ipAddress  String?  @map("ip_address") @db.VarChar(45)
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  actor User? @relation(fields: [actorId], references: [id], onDelete: SetNull)
+
+  @@index([entityType, entityId, createdAt], name: "idx_entity")
+  @@index([actorId, createdAt],              name: "idx_actor")
+  @@map("audit_logs")
+}

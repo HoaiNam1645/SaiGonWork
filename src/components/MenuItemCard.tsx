@@ -18,11 +18,14 @@ export default function MenuItemCard({ item }: { item: MenuItem }) {
 
   function handleAdd() {
     addItem({
-      menuItemId: item.id,
-      name: item.name,
+      menuItemId:   item.id,
+      name:         item.name,
       variantLabel: activeVariant?.label,
-      price: displayPrice!,
-      image: item.image,
+      price:        displayPrice!,
+      image:        item.image,
+      dishId:       item.dishId,
+      optionId:     activeVariant ? item.optionId : undefined,
+      valueId:      activeVariant?.valueId,
     })
   }
 

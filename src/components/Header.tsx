@@ -3,15 +3,23 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { useCart } from '@/context/CartContext'
+import { useAuth } from '@/context/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
 import { LOCALES, LOCALE_LABEL, type Locale } from '@/i18n/dictionary'
 import { ShoppingBagIcon, MenuIcon, XIcon } from './Icons'
+import ProfileMenu from './ProfileMenu'
 
 export default function Header() {
   const { itemCount, toggleCart } = useCart()
+  const { user } = useAuth()
   const { t, locale, setLocale } = useI18n()
   const [scrolled, setScrolled] = useState(false)
   const [mobileOpen, setMobileOpen] = useState(false)
+  // Auth-dependent UI chỉ render sau hydration để match SSR. Tránh hydration mismatch
+  // khi AuthContext lazy init đọc snapshot trên client (khác SSR null).
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => setMounted(true), [])
+  const showUser = mounted ? user : null
 
   useEffect(() => {
     let ticking = false
@@ -108,33 +116,45 @@ export default function Header() {
             </span>
           </button>
 
-          <Link
-            href="/orders"
-            aria-label={t('header.orders_aria')}
-            className={`hidden sm:inline-flex items-center gap-1.5 text-sm font-medium tracking-wide transition-colors ${
-              scrolled ? 'text-parchment/80 hover:text-gold' : 'text-wood-dark/80 hover:text-wood-dark'
-            }`}
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 11V6a3 3 0 0 1 6 0v5" />
-              <path d="M5 9h14l-1 11H6L5 9z" />
-            </svg>
-            <span>{t('header.orders')}</span>
-          </Link>
+          {showUser ? (
+            /* Logged in → profile menu (Orders + Cart đã gom vào dropdown, ẩn khỏi nav) */
+            <ProfileMenu variant={scrolled ? 'dark' : 'light'} />
+          ) : (
+            <>
+              {/* Anonymous — giữ Cart ở nav như cũ */}
+              <button
+                onClick={toggleCart}
+                aria-label={t('header.cart_aria')}
+                className="relative flex items-center gap-2 bg-gold hover:bg-gold-light text-wood-dark font-semibold text-sm px-4 sm:px-5 py-2.5 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
+              >
+                <ShoppingBagIcon className="w-4 h-4" />
+                <span className="hidden sm:inline">{t('header.cart')}</span>
+                {itemCount > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-amber text-white text-[11px] min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center font-bold ring-2 ring-wood-dark">
+                    {itemCount}
+                  </span>
+                )}
+              </button>
 
-          <button
-            onClick={toggleCart}
-            aria-label={t('header.cart_aria')}
-            className="relative flex items-center gap-2 bg-gold hover:bg-gold-light text-wood-dark font-semibold text-sm px-4 sm:px-5 py-2.5 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
-          >
-            <ShoppingBagIcon className="w-4 h-4" />
-            <span className="hidden sm:inline">{t('header.cart')}</span>
-            {itemCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 bg-amber text-white text-[11px] min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center font-bold ring-2 ring-wood-dark">
-                {itemCount}
-              </span>
-            )}
-          </button>
+              {/* Login icon */}
+              <Link
+                href="/auth/login"
+                aria-label={t('header.signin_aria')}
+                className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-2 rounded-full transition-colors ${
+                  scrolled
+                    ? 'text-parchment/85 hover:text-gold hover:bg-gold/10'
+                    : 'text-wood-dark/85 hover:text-wood-dark hover:bg-wood-dark/[0.06]'
+                }`}
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                  <polyline points="10 17 15 12 10 7" />
+                  <line x1="15" y1="12" x2="3" y2="12" />
+                </svg>
+                <span className="text-sm font-medium tracking-wide">{t('header.signin')}</span>
+              </Link>
+            </>
+          )}
 
           <button
             onClick={() => setMobileOpen((v) => !v)}
@@ -158,17 +178,47 @@ export default function Header() {
               {label}
             </a>
           ))}
-          <Link
-            href="/orders"
-            onClick={() => setMobileOpen(false)}
-            className="flex items-center gap-2 text-parchment/80 hover:text-gold py-3 border-b border-gold/10 transition-colors"
-          >
-            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 11V6a3 3 0 0 1 6 0v5" />
-              <path d="M5 9h14l-1 11H6L5 9z" />
-            </svg>
-            {t('header.orders')}
-          </Link>
+
+          {/* Mobile — giữ Orders + signin/profile tuỳ state */}
+          {showUser ? (
+            <>
+              <Link
+                href="/orders"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 text-parchment/80 hover:text-gold py-3 border-b border-gold/10 transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 11V6a3 3 0 0 1 6 0v5" />
+                  <path d="M5 9h14l-1 11H6L5 9z" />
+                </svg>
+                {t('header.orders')}
+              </Link>
+              <Link
+                href="/account"
+                onClick={() => setMobileOpen(false)}
+                className="flex items-center gap-2 text-parchment/80 hover:text-gold py-3 border-b border-gold/10 transition-colors"
+              >
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                  <circle cx="12" cy="7" r="4" />
+                </svg>
+                {t('header.profile.account')}
+              </Link>
+            </>
+          ) : (
+            <Link
+              href="/auth/login"
+              onClick={() => setMobileOpen(false)}
+              className="flex items-center gap-2 text-parchment/80 hover:text-gold py-3 border-b border-gold/10 transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4" />
+                <polyline points="10 17 15 12 10 7" />
+                <line x1="15" y1="12" x2="3" y2="12" />
+              </svg>
+              {t('header.signin')}
+            </Link>
+          )}
 
           {/* Language toggle (mobile) */}
           <button

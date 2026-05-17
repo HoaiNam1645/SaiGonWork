@@ -217,6 +217,7 @@ CREATE TABLE orders (
   cancelled_by             BIGINT NULL,
   estimated_ready_at       DATETIME NULL,
   delivered_at             DATETIME NULL,
+  scheduled_at             DATETIME NULL,                   -- Khách hẹn giao vào thời điểm cụ thể (NULL = giao ngay)
 
   created_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
   updated_at               DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
@@ -310,6 +311,74 @@ CREATE TABLE store_settings (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- =====================================================================
+-- 11.5. CARTS — server-side cart cho customer đã login
+-- Guest/anonymous vẫn dùng localStorage; khi login merge vào server cart.
+-- =====================================================================
+CREATE TABLE carts (
+  id         BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id    BIGINT NOT NULL UNIQUE,
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_cart_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE cart_items (
+  id                   BIGINT PRIMARY KEY AUTO_INCREMENT,
+  cart_id              BIGINT NOT NULL,
+  dish_id              BIGINT NOT NULL,
+  quantity             INT NOT NULL DEFAULT 1,
+  options_json         JSON NULL,                       -- canonical: array sorted by (option_id, value_id)
+  options_hash         VARCHAR(64) NOT NULL DEFAULT '', -- SHA-1 hex của canonical options_json để dedup
+  snapshot_unit_price  DECIMAL(12,2) NOT NULL,          -- giá tại thời điểm add (so sánh với giá live)
+  note                 VARCHAR(255) NULL,
+  created_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  updated_at           DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  CONSTRAINT fk_citem_cart FOREIGN KEY (cart_id) REFERENCES carts(id)  ON DELETE CASCADE,
+  CONSTRAINT fk_citem_dish FOREIGN KEY (dish_id) REFERENCES dishes(id) ON DELETE CASCADE,
+  UNIQUE KEY uniq_cart_dish_options (cart_id, dish_id, options_hash),
+  INDEX idx_cart (cart_id),
+  CONSTRAINT chk_cart_qty CHECK (quantity >= 1 AND quantity <= 99)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================================
+-- 11.7. NOTIFICATIONS — push thông báo realtime cho staff/admin (và customer
+-- trong tương lai). user_id NULL = broadcast cho mọi staff/admin.
+-- Per-user read state qua bảng notification_reads để hỗ trợ multi-staff.
+-- =====================================================================
+CREATE TABLE notifications (
+  id          BIGINT PRIMARY KEY AUTO_INCREMENT,
+  user_id     BIGINT NULL,
+  type        ENUM(
+    'order_created',
+    'order_status_changed',
+    'order_cancelled',
+    'payment_received',
+    'low_stock',
+    'new_customer',
+    'system'
+  ) NOT NULL,
+  metadata    JSON NULL,
+  entity_type VARCHAR(50)  NULL,
+  entity_id   BIGINT       NULL,
+  action_url  VARCHAR(500) NULL,
+  created_at  DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT fk_notif_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_created (user_id, created_at),
+  INDEX idx_type_created (type, created_at),
+  INDEX idx_entity       (entity_type, entity_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+CREATE TABLE notification_reads (
+  notification_id BIGINT NOT NULL,
+  user_id         BIGINT NOT NULL,
+  read_at         DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  PRIMARY KEY (notification_id, user_id),
+  CONSTRAINT fk_notif_read_notif FOREIGN KEY (notification_id) REFERENCES notifications(id) ON DELETE CASCADE,
+  CONSTRAINT fk_notif_read_user  FOREIGN KEY (user_id)         REFERENCES users(id) ON DELETE CASCADE,
+  INDEX idx_user_read (user_id, read_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- =====================================================================
 -- 12. AUDIT LOGS
 -- =====================================================================
 CREATE TABLE audit_logs (
@@ -368,34 +437,205 @@ INSERT INTO store_settings (
   25, 'osrm', 'EUR'
 );
 
+-- =====================================================================
+-- MENU SEED — đồng bộ với src/data/menu.ts (frontend "Our dishes")
+-- 8 categories · 34 dishes · 12 dishes có variants (options + values)
+-- =====================================================================
+
 -- Categories
 INSERT INTO categories (slug, name_vi, name_en, display_order) VALUES
-  ('com',       'Cơm',         'Rice dishes',  1),
-  ('pho-bun',   'Phở & Bún',   'Pho & Noodles', 2),
-  ('do-an-vat', 'Đồ ăn vặt',   'Snacks',        3),
-  ('do-uong',   'Đồ uống',     'Drinks',        4);
+  ('vorspeisen',    'Vorspeisen',    'Starters',       1),
+  ('suppen',        'Suppen',        'Soups',          2),
+  ('salate',        'Salate',        'Salads',         3),
+  ('hauptgerichte', 'Hauptgerichte', 'Main dishes',    4),
+  ('wok-gerichte',  'Wok-Gerichte',  'Wok dishes',     5),
+  ('reis-nudeln',   'Reis & Nudeln', 'Rice & Noodles', 6),
+  ('kinder',        'Kinder Menu',   'Kids menu',      7),
+  ('desserts',      'Desserts',      'Desserts',       8);
 
--- Dishes mẫu (giá EUR)
-INSERT INTO dishes (category_id, slug, name_vi, name_en, description_vi, price, image_url, is_featured, prep_time_min, spicy_level) VALUES
-  (1, 'com-tam-suon',   'Cơm tấm sườn',     'Broken rice with grilled pork', 'Cơm tấm sườn nướng truyền thống Sài Gòn', 12.90, '/menu/com-tam.jpg',     TRUE,  15, 1),
-  (1, 'com-ga-xoi-mo',  'Cơm gà xối mỡ',    'Crispy chicken rice',           'Gà chiên giòn ăn kèm cơm',                  13.50, '/menu/com-ga.jpg',      TRUE,  18, 0),
-  (2, 'pho-bo',         'Phở bò',           'Beef pho',                      'Phở bò tái nạm',                            11.90, '/menu/pho-bo.jpg',      TRUE,  10, 0),
-  (2, 'bun-bo-hue',     'Bún bò Huế',       'Hue spicy beef noodle',         'Bún bò Huế cay nồng',                       12.50, '/menu/bun-bo.jpg',      FALSE, 12, 2),
-  (3, 'banh-trang-tron','Bánh tráng trộn',  'Mixed rice paper salad',        'Đặc sản Sài Gòn',                            7.90, '/menu/banh-trang.jpg', FALSE,  8, 1),
-  (4, 'tra-da',         'Trà đá',           'Iced tea',                      NULL,                                          2.50, NULL,                   FALSE,  2, 0),
-  (4, 'cafe-sua-da',    'Cà phê sữa đá',    'Vietnamese iced coffee',        'Cà phê phin truyền thống',                   4.50, '/menu/cafe.jpg',       TRUE,   5, 0);
+-- Dishes (German names in name_vi, descriptions in description_vi; English fields NULL — admin sẽ bổ sung)
+INSERT INTO dishes (category_id, slug, name_vi, description_vi, price, image_url, is_featured, display_order) VALUES
+  -- ────── Vorspeisen ──────
+  (1, 'wantan',             'Knusprig gebackene Wan-Tan',  '5 Stk. — Gefüllte Teigtaschen mit süß-sauer Sauce',                                                       4.50,  'https://images.unsplash.com/photo-1496116218417-1a781b1c416c?w=800&auto=format&fit=crop&q=75', TRUE,  1),
+  (1, 'gyoza',              'Gyoza',                       '5 Stk. — Frittierte Teigtaschen mit Hähnchenfleisch und Gemüsefüllung, mit süß-saurem Dip',              4.50,  'https://images.unsplash.com/photo-1625938144755-652e08e359b7?w=800&auto=format&fit=crop&q=75', FALSE, 2),
+  (1, 'gyoza-veggie',       'Gyoza Veggie',                '5 Stk. — Vegetarische Gyoza mit Gemüsefüllung',                                                           4.50,  'https://images.unsplash.com/photo-1625938144755-652e08e359b7?w=800&auto=format&fit=crop&q=75', FALSE, 3),
+  (1, 'mini-rollen',        'Mini-Rollen',                 '7 Stk. — Tofu, Karotten, Sojasprossen, Reisnudeln (vegetarisch)',                                         4.50,  'https://images.unsplash.com/photo-1576577445504-6af96477db52?w=800&auto=format&fit=crop&q=75', FALSE, 4),
+  (1, 'nem-chay',           'Nem Chay',                    '3 Stk. — Hausgemachte vietnamesische Frühlingsrollen, vegane Füllung mit Glasnudeln, Pilzen, Karotten — süß-sauer Dip', 4.50, 'https://images.unsplash.com/photo-1606471191009-63994c53433b?w=800&auto=format&fit=crop&q=75', FALSE, 5),
+  (1, 'edamame',            'Edamame',                     'Grüne Bohnen mit Meersalz',                                                                                 4.50,  'https://images.unsplash.com/photo-1599056504888-fc8d72bf6ec0?w=800&auto=format&fit=crop&q=75', FALSE, 6),
+  (1, 'pommes',             'Pommes Frites',               'Knusprige Pommes Frites',                                                                                   4.50,  'https://images.unsplash.com/photo-1573080496219-bb080dd4f877?w=800&auto=format&fit=crop&q=75', FALSE, 7),
+  (1, 'yakitori',           'Yakitori',                    '2 Stk. — Hähnchen Yakitori, Teriyaki mit Tamarinden Soße',                                                  4.50,  'https://images.unsplash.com/photo-1535473895227-bdecb20fb157?w=800&auto=format&fit=crop&q=75', TRUE,  8),
+  (1, 'sommerrollen',       'Sommerrollen mit Salat',      'Reisnudeln, geröstete Schalotten, Gurke, Reispapier mit süß-sauer Soße',                                    4.50,  'https://images.unsplash.com/photo-1576577445504-6af96477db52?w=800&auto=format&fit=crop&q=75', FALSE, 9),
+  (1, 'gebratene-garnelen', 'Gebratene Garnelen',          '2 Stk. — Grüne Reisflöckchen, Garnelen, süß-sauer Soße',                                                    6.50,  'https://images.unsplash.com/photo-1559847844-5315695dadae?w=800&auto=format&fit=crop&q=75', TRUE,  10),
+  (1, 'vorspeise-platte',   'Gemischte Vorspeise-Platte',  '2 Sommerrollen · 2 Nem Chay · 2 Gebratene Garnelen · 5 Gyoza · 4 Wan-Tan',                                  15.90, 'https://images.unsplash.com/photo-1547928576-b822bc410bdf?w=800&auto=format&fit=crop&q=75', TRUE,  11),
 
--- Options mẫu cho Cơm tấm sườn (price_delta EUR)
-INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order) VALUES
-  (1, 'Phần ăn', 'Portion', 'single', TRUE, 1),
-  (1, 'Thêm',    'Extras',  'multi',  FALSE, 2);
+  -- ────── Suppen ──────
+  (2, 'peking-suppe', 'Peking-Suppe',  'Sauer-scharf',                                            4.90, 'https://images.unsplash.com/photo-1547592180-85f173990554?w=800&auto=format&fit=crop&q=75', TRUE,  1),
+  (2, 'wantan-suppe', 'Wantan Suppe',  '4 Stk. — Hähnchenfleisch, Garnelen, Zucchini, Brokkoli',  4.90, 'https://images.unsplash.com/photo-1569718212165-3a8278d5f624?w=800&auto=format&fit=crop&q=75', FALSE, 2),
+  (2, 'tom-yum',      'Tom Yum Suppe', 'Tomyum, Zucchini, Brokkoli, Karotten, Champignon',        4.90, 'https://images.unsplash.com/photo-1569059078571-d0a1bd0d6c1e?w=800&auto=format&fit=crop&q=75', TRUE,  3),
 
+  -- ────── Salate ──────
+  (3, 'gemischter-salat', 'Gemischter Salat',      NULL, 6.50, 'https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=800&auto=format&fit=crop&q=75', FALSE, 1),
+  (3, 'tomatensalat',     'Tomatensalat',          NULL, 6.50, 'https://images.unsplash.com/photo-1607532941433-304659e8198a?w=800&auto=format&fit=crop&q=75', FALSE, 2),
+  (3, 'haehnchen-salat',  'Hähnchenfleisch-Salat', NULL, 7.50, 'https://images.unsplash.com/photo-1551248429-40975aa4de74?w=800&auto=format&fit=crop&q=75', FALSE, 3),
+  (3, 'garnelen-salat',   'Garnelen-Salat',        NULL, 7.50, 'https://images.unsplash.com/photo-1505253716362-afaea1d3d1af?w=800&auto=format&fit=crop&q=75', TRUE,  4),
+
+  -- ────── Hauptgerichte ──────
+  (4, 'pho',           'Pho',           'Traditionelle 5-Kräuter-Brühe, Reisbandnudel-Suppe mit frischem Koriander, Frühlingszwiebeln und Sojasprossen',          12.00, 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=800&auto=format&fit=crop&q=75', TRUE,  1),
+  (4, 'pho-xao',       'Pho Xao',       'Gebratene Reisbandnudeln mit Gemüse',                                                                                    12.00, 'https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?w=800&auto=format&fit=crop&q=75', FALSE, 2),
+  (4, 'bun-bo-nam-bo', 'Bun Bo Nam Bo', 'Reisnudeln, Salat, hausgemachte Soße, geröstete Schalotten, Erdnüsse, Gurke, Koriander, Sojasprossen, Rindfleisch',      14.00, 'https://images.unsplash.com/photo-1576577445504-6af96477db52?w=800&auto=format&fit=crop&q=75', TRUE,  3),
+  (4, 'bun-vegan',     'Bun Vegan',     'Vegane Frühlingsrollen auf warmen Reisnudeln mit Wildkräuter-Salat, Koriander, gerösteten Zwiebeln, Erdnüssen, Sojasoße', 13.00, 'https://images.unsplash.com/photo-1565299585323-38d6b0865b47?w=800&auto=format&fit=crop&q=75', FALSE, 4),
+  (4, 'bun-tofu',      'Bun Tofu',      'Im Wok gebratener Bio-Tofu auf warmen Reisnudeln mit Sojasprossen, Karotten, Wildkräuter-Salat, Koriander, Erdnüssen, Sojasoße', 13.00, 'https://images.unsplash.com/photo-1559314809-0d155014e29e?w=800&auto=format&fit=crop&q=75', FALSE, 5),
+
+  -- ────── Wok-Gerichte (cùng 5 variants: Tofu/Hähnchen/Frittiertes 10.90, Ente/Rind 12.90) ──────
+  (5, 'thai-curry',   'Thai Curry',                'Gemüse, Chili, Salat, Zitronengras — zu Reis', 10.90, 'https://images.unsplash.com/photo-1455619452474-d2be8b1e70cd?w=800&auto=format&fit=crop&q=75', TRUE,  1),
+  (5, 'kung-pao',     'Kung Pao Soße',             'Grüne Gemüse, Reis',                            10.90, 'https://images.unsplash.com/photo-1582878826629-29b7ad1cdc43?w=800&auto=format&fit=crop&q=75', FALSE, 2),
+  (5, 'suess-sauer',  'Süß-sauer Soße mit Ananas', 'Grüne Gemüse, Reis',                            10.90, 'https://images.unsplash.com/photo-1604908176997-125f25cc6f3d?w=800&auto=format&fit=crop&q=75', FALSE, 3),
+  (5, 'saigon-sosse', 'Saigon Soße',               'Grüne Gemüse, Reis',                            10.90, 'https://images.unsplash.com/photo-1633237308525-cd587cf71926?w=800&auto=format&fit=crop&q=75', FALSE, 4),
+
+  -- ────── Reis & Nudeln ──────
+  (6, 'gebratene-eier-reis', 'Gebratene Eier-Reis Gerichte', 'Gebratener Reis mit Ei, Sojasprossen und Zwiebeln',                              8.90,  'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=800&auto=format&fit=crop&q=75', FALSE, 1),
+  (6, 'gebratene-nudeln',    'Gebratene Nudelgerichte',      'Gebratene Nudeln mit Ei, Sojasprossen und Zwiebeln',                             8.90,  'https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?w=800&auto=format&fit=crop&q=75', TRUE,  2),
+  (6, 'yaki-udon',           'Yaki Udon',                    'Mit Gemüse, Karotten, Sojasprossen, Frühlingszwiebeln, Paprika',                  11.00, 'https://images.unsplash.com/photo-1569058242253-92a9c755a0ec?w=800&auto=format&fit=crop&q=75', FALSE, 3),
+  (6, 'bibimbap',            'Bibimbap',                     'Reis, Karotten, Gurken, Zucchini, Sojasprossen, Mais, Erbsen, Sesam, Wakame, Ei', 11.90, 'https://images.unsplash.com/photo-1553163147-622ab57be1c7?w=800&auto=format&fit=crop&q=75', TRUE,  4),
+
+  -- ────── Kinder Menu ──────
+  (7, 'kinder-huehnchen', 'Panierte Hühnerbrustfilet', NULL, 6.90, 'https://images.unsplash.com/photo-1532550907401-a500c9a57435?w=800&auto=format&fit=crop&q=75', FALSE, 1),
+  (7, 'kinder-reis',      'Gebratene Duftreis',        NULL, 6.90, 'https://images.unsplash.com/photo-1603133872878-684f208fb84b?w=800&auto=format&fit=crop&q=75', FALSE, 2),
+
+  -- ────── Desserts ──────
+  (8, 'chuoi-chien', 'Chuối Chiên', 'Gebackene Banane mit Honig und Schokoladensoße', 4.50, 'https://images.unsplash.com/photo-1601493700631-2b16ec4b4716?w=800&auto=format&fit=crop&q=75', TRUE, 1);
+
+-- =====================================================================
+-- Dish options + values cho 12 dishes có variants
+-- Mỗi dish: 1 option "Auswahl" (Selection), required, single-choice
+-- price_delta = variant_price - dishes.price (base = giá thấp nhất)
+-- =====================================================================
+
+-- Sommerrollen — 3 × 4.50
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='sommerrollen';
+SET @opt := LAST_INSERT_ID();
 INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
-  (1, 'Thường',     'Regular',       0.00, 1),
-  (1, 'Đặc biệt',   'Large',         2.50, 2),
-  (2, 'Trứng ốp la','Fried egg',     1.50, 1),
-  (2, 'Chả',        'Pork loaf',     2.00, 2),
-  (2, 'Bì',         'Shredded skin', 1.00, 3);
+  (@opt, 'Tofu',            'Tofu',    0.00, 1),
+  (@opt, 'Hähnchenfleisch', 'Chicken', 0.00, 2),
+  (@opt, 'Garnelen',        'Shrimp',  0.00, 3);
+
+-- Tom Yum — 3 × 4.90
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='tom-yum';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',            'Tofu',    0.00, 1),
+  (@opt, 'Hähnchenfleisch', 'Chicken', 0.00, 2),
+  (@opt, 'Garnelen',        'Shrimp',  0.00, 3);
+
+-- Pho — Tofu 12 / Hähnchen 13 / Rind 14 (deltas 0/1/2 from base 12.00)
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='pho';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',            'Tofu',    0.00, 1),
+  (@opt, 'Hähnchenfleisch', 'Chicken', 1.00, 2),
+  (@opt, 'Rindfleisch',     'Beef',    2.00, 3);
+
+-- Pho Xao — same variants as Pho
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='pho-xao';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',            'Tofu',    0.00, 1),
+  (@opt, 'Hähnchenfleisch', 'Chicken', 1.00, 2),
+  (@opt, 'Rindfleisch',     'Beef',    2.00, 3);
+
+-- Wok dishes (Thai Curry, Kung Pao, Süß-sauer, Saigon) — 5 variants: Tofu/Hähnchen/Frittiertes 10.90, Ente/Rind 12.90
+-- (delta 0/0/0/2/2 from base 10.90)
+
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='thai-curry';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',                       'Tofu',           0.00, 1),
+  (@opt, 'Hähnchen',                   'Chicken',        0.00, 2),
+  (@opt, 'Frittiertes Hähnchen',       'Fried chicken',  0.00, 3),
+  (@opt, 'Knusprig gebratene Ente',    'Crispy duck',    2.00, 4),
+  (@opt, 'Gebratenes Rindfleisch',     'Roasted beef',   2.00, 5);
+
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='kung-pao';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',                       'Tofu',           0.00, 1),
+  (@opt, 'Hähnchen',                   'Chicken',        0.00, 2),
+  (@opt, 'Frittiertes Hähnchen',       'Fried chicken',  0.00, 3),
+  (@opt, 'Knusprig gebratene Ente',    'Crispy duck',    2.00, 4),
+  (@opt, 'Gebratenes Rindfleisch',     'Roasted beef',   2.00, 5);
+
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='suess-sauer';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',                       'Tofu',           0.00, 1),
+  (@opt, 'Hähnchen',                   'Chicken',        0.00, 2),
+  (@opt, 'Frittiertes Hähnchen',       'Fried chicken',  0.00, 3),
+  (@opt, 'Knusprig gebratene Ente',    'Crispy duck',    2.00, 4),
+  (@opt, 'Gebratenes Rindfleisch',     'Roasted beef',   2.00, 5);
+
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='saigon-sosse';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',                       'Tofu',           0.00, 1),
+  (@opt, 'Hähnchen',                   'Chicken',        0.00, 2),
+  (@opt, 'Frittiertes Hähnchen',       'Fried chicken',  0.00, 3),
+  (@opt, 'Knusprig gebratene Ente',    'Crispy duck',    2.00, 4),
+  (@opt, 'Gebratenes Rindfleisch',     'Roasted beef',   2.00, 5);
+
+-- Gebratene Eier-Reis / Gebratene Nudeln — 6 variants: Tofu/Gemüse 8.90, Hähnchen/Hühnerbrust 10.90, Ente/Rind 12.90
+-- (deltas 0/0/2/2/4/4 from base 8.90)
+
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='gebratene-eier-reis';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',                    'Tofu',             0.00, 1),
+  (@opt, 'Gemüse',                  'Vegetables',       0.00, 2),
+  (@opt, 'Hähnchen',                'Chicken',          2.00, 3),
+  (@opt, 'Panierte Hühnerbrust',    'Breaded chicken',  2.00, 4),
+  (@opt, 'Knusprig Ente',           'Crispy duck',      4.00, 5),
+  (@opt, 'Rindfleisch',             'Beef',             4.00, 6);
+
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='gebratene-nudeln';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',                    'Tofu',             0.00, 1),
+  (@opt, 'Gemüse',                  'Vegetables',       0.00, 2),
+  (@opt, 'Hähnchen',                'Chicken',          2.00, 3),
+  (@opt, 'Panierte Hühnerbrust',    'Breaded chicken',  2.00, 4),
+  (@opt, 'Knusprig Ente',           'Crispy duck',      4.00, 5),
+  (@opt, 'Rindfleisch',             'Beef',             4.00, 6);
+
+-- Yaki Udon — 6 variants: 11/11/13/13/15/15 (deltas 0/0/2/2/4/4 from base 11.00)
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='yaki-udon';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',                    'Tofu',             0.00, 1),
+  (@opt, 'Gemüse',                  'Vegetables',       0.00, 2),
+  (@opt, 'Hähnchen',                'Chicken',          2.00, 3),
+  (@opt, 'Panierte Hühnerbrust',    'Breaded chicken',  2.00, 4),
+  (@opt, 'Knusprig Ente',           'Crispy duck',      4.00, 5),
+  (@opt, 'Rindfleisch',             'Beef',             4.00, 6);
+
+-- Bibimbap — 4 variants: Tofu/Hähnchen 11.90, Rind/Garnelen 13.90 (deltas 0/0/2/2 from base 11.90)
+INSERT INTO dish_options (dish_id, name_vi, name_en, type, is_required, display_order)
+  SELECT id, 'Auswahl', 'Selection', 'single', TRUE, 1 FROM dishes WHERE slug='bibimbap';
+SET @opt := LAST_INSERT_ID();
+INSERT INTO dish_option_values (dish_option_id, label_vi, label_en, price_delta, display_order) VALUES
+  (@opt, 'Tofu',            'Tofu',     0.00, 1),
+  (@opt, 'Hähnchen',        'Chicken',  0.00, 2),
+  (@opt, 'Rindfleisch',     'Beef',     2.00, 3),
+  (@opt, 'Garnelen',        'Shrimp',   2.00, 4);
 
 -- Promotion mẫu (EUR)
 INSERT INTO promotions (code, description, type, value, min_order, ends_at, is_active) VALUES

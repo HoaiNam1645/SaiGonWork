@@ -1,13 +1,62 @@
 'use client'
 
+import { useEffect, useRef, useState } from 'react'
 import Image from 'next/image'
 import Link from 'next/link'
 import { useCart } from '@/context/CartContext'
 import { useI18n } from '@/i18n/I18nContext'
+import type { CartItem } from '@/types'
 import { XIcon, PlusIcon, MinusIcon, TrashIcon, ShoppingBagIcon, ArrowRightIcon } from './Icons'
 
+const NOTE_DEBOUNCE_MS = 600
+
+function NoteInput({
+  cartId,
+  initialNote,
+  onSave,
+}: {
+  cartId: string
+  initialNote: string
+  onSave: (cartId: string, note: string) => Promise<void> | void
+}) {
+  const { t } = useI18n()
+  const [value, setValue] = useState(initialNote)
+  // Sync khi item bị thay đổi từ ngoài (vd login → server cart trả note khác)
+  const lastExternalRef = useRef(initialNote)
+  useEffect(() => {
+    if (lastExternalRef.current !== initialNote) {
+      lastExternalRef.current = initialNote
+      setValue(initialNote)
+    }
+  }, [initialNote])
+
+  // Debounced save — không spam API mỗi ký tự
+  useEffect(() => {
+    if (value === initialNote) return
+    const handle = window.setTimeout(() => {
+      void onSave(cartId, value)
+    }, NOTE_DEBOUNCE_MS)
+    return () => window.clearTimeout(handle)
+  }, [value, initialNote, cartId, onSave])
+
+  return (
+    <input
+      type="text"
+      value={value}
+      onChange={e => setValue(e.target.value)}
+      onBlur={() => {
+        if (value !== initialNote) void onSave(cartId, value)
+      }}
+      maxLength={255}
+      placeholder={t('cart.note_placeholder')}
+      aria-label={t('cart.note_aria')}
+      className="mt-2 w-full bg-white border border-gold/20 focus:border-gold/60 focus:outline-none rounded-lg px-2.5 py-1.5 text-xs text-wood-dark placeholder:text-wood/35 transition-colors"
+    />
+  )
+}
+
 export default function CartDrawer() {
-  const { items, isOpen, total, closeCart, removeItem, updateQuantity, clearCart } = useCart()
+  const { items, isOpen, total, closeCart, removeItem, updateQuantity, updateNote, clearCart } = useCart()
   const { t } = useI18n()
 
   return (
@@ -72,62 +121,69 @@ export default function CartDrawer() {
             </div>
           ) : (
             <ul className="divide-y divide-gold/15">
-              {items.map((item) => (
-                <li key={item.cartId} className="py-4 flex gap-3">
-                  <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-parchment-dark flex-shrink-0 border border-gold/15">
-                    {item.image ? (
-                      <Image
-                        src={item.image}
-                        alt={item.name}
-                        fill
-                        sizes="64px"
-                        className="object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gold/40">
-                        <ShoppingBagIcon className="w-6 h-6" />
+              {items.map((item: CartItem) => (
+                <li key={item.cartId} className="py-4">
+                  <div className="flex gap-3">
+                    <div className="relative w-16 h-16 rounded-xl overflow-hidden bg-parchment-dark flex-shrink-0 border border-gold/15">
+                      {item.image ? (
+                        <Image
+                          src={item.image}
+                          alt={item.name}
+                          fill
+                          sizes="64px"
+                          className="object-cover"
+                        />
+                      ) : (
+                        <div className="w-full h-full flex items-center justify-center text-gold/40">
+                          <ShoppingBagIcon className="w-6 h-6" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-wood-dark text-sm leading-snug line-clamp-2">
+                        {item.name}
+                      </p>
+                      {item.variantLabel && (
+                        <p className="text-wood/55 text-xs mt-0.5">{item.variantLabel}</p>
+                      )}
+                      <p className="text-gold font-bold text-base mt-1.5">
+                        {(item.price * item.quantity).toFixed(2).replace('.', ',')} €
+                      </p>
+                    </div>
+                    <div className="flex flex-col items-end justify-between gap-2 flex-shrink-0">
+                      <button
+                        onClick={() => removeItem(item.cartId)}
+                        className="text-wood/40 hover:text-red-500 transition-colors"
+                        aria-label={t('cart.remove_aria')}
+                      >
+                        <TrashIcon className="w-4 h-4" />
+                      </button>
+                      <div className="flex items-center gap-1.5 bg-white border border-gold/20 rounded-full px-1 py-1">
+                        <button
+                          onClick={() => updateQuantity(item.cartId, item.quantity - 1)}
+                          className="w-6 h-6 rounded-full hover:bg-gold/10 text-wood-dark flex items-center justify-center transition-colors"
+                          aria-label={t('cart.qty_minus_aria')}
+                        >
+                          <MinusIcon className="w-3 h-3" strokeWidth={2.5} />
+                        </button>
+                        <span className="w-5 text-center text-sm font-bold text-wood-dark">
+                          {item.quantity}
+                        </span>
+                        <button
+                          onClick={() => updateQuantity(item.cartId, item.quantity + 1)}
+                          className="w-6 h-6 rounded-full hover:bg-gold/10 text-wood-dark flex items-center justify-center transition-colors"
+                          aria-label={t('cart.qty_plus_aria')}
+                        >
+                          <PlusIcon className="w-3 h-3" strokeWidth={2.5} />
+                        </button>
                       </div>
-                    )}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-semibold text-wood-dark text-sm leading-snug line-clamp-2">
-                      {item.name}
-                    </p>
-                    {item.variantLabel && (
-                      <p className="text-wood/55 text-xs mt-0.5">{item.variantLabel}</p>
-                    )}
-                    <p className="text-gold font-bold text-base mt-1.5">
-                      {(item.price * item.quantity).toFixed(2).replace('.', ',')} €
-                    </p>
-                  </div>
-                  <div className="flex flex-col items-end justify-between gap-2 flex-shrink-0">
-                    <button
-                      onClick={() => removeItem(item.cartId)}
-                      className="text-wood/40 hover:text-red-500 transition-colors"
-                      aria-label={t('cart.remove_aria')}
-                    >
-                      <TrashIcon className="w-4 h-4" />
-                    </button>
-                    <div className="flex items-center gap-1.5 bg-white border border-gold/20 rounded-full px-1 py-1">
-                      <button
-                        onClick={() => updateQuantity(item.cartId, item.quantity - 1)}
-                        className="w-6 h-6 rounded-full hover:bg-gold/10 text-wood-dark flex items-center justify-center transition-colors"
-                        aria-label={t('cart.qty_minus_aria')}
-                      >
-                        <MinusIcon className="w-3 h-3" strokeWidth={2.5} />
-                      </button>
-                      <span className="w-5 text-center text-sm font-bold text-wood-dark">
-                        {item.quantity}
-                      </span>
-                      <button
-                        onClick={() => updateQuantity(item.cartId, item.quantity + 1)}
-                        className="w-6 h-6 rounded-full hover:bg-gold/10 text-wood-dark flex items-center justify-center transition-colors"
-                        aria-label={t('cart.qty_plus_aria')}
-                      >
-                        <PlusIcon className="w-3 h-3" strokeWidth={2.5} />
-                      </button>
                     </div>
                   </div>
+                  <NoteInput
+                    cartId={item.cartId}
+                    initialNote={item.note ?? ''}
+                    onSave={updateNote}
+                  />
                 </li>
               ))}
             </ul>
