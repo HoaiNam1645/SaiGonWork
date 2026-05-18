@@ -32,6 +32,14 @@ ordersRouter.get(
   ah(ordersApi.listForAdmin),
 )
 
+// GET /api/orders/admin/overdue — pending_payment quá hạn 1 ngày, cho cảnh báo dashboard.
+ordersRouter.get(
+  '/admin/overdue',
+  requireAuth,
+  requireRole('staff', 'admin'),
+  ah(ordersApi.listOverduePending),
+)
+
 // POST /api/orders/lookup/check — pre-check email có đơn không, để guest không
 // phải verify OTP rồi mới biết "không có đơn". Rate-limit per-IP chống enumerate.
 ordersRouter.post(

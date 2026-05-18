@@ -117,6 +117,9 @@ const de: Dict = {
 
   'email.signature': 'Mit freundlichen Grüßen,\nIhr Sai Gon Wok Team',
   'email.footer.address': 'Sài Gòn Wok · Kanalstraße 10, 70182 Stuttgart',
+
+  // Dish admin
+  'dish.featured_limit_reached': 'Es können maximal {{limit}} Gerichte als Spezialität markiert werden. Bitte entfernen Sie zuerst ein anderes Gericht.',
 }
 
 const en: Dict = {
@@ -232,6 +235,9 @@ const en: Dict = {
 
   'email.signature': 'Best regards,\nYour Sai Gon Wok team',
   'email.footer.address': 'Sài Gòn Wok · Kanalstraße 10, 70182 Stuttgart',
+
+  // Dish admin
+  'dish.featured_limit_reached': 'You can feature at most {{limit}} dishes. Please un-feature another dish first.',
 }
 
 export const dictionary: Record<Locale, Dict> = { de, en }

@@ -53,6 +53,7 @@ const createOrderSchema = z.object({
   address:        addressInlineSchema.optional(),
   items:          z.array(itemSchema).min(1),
   payment_method: z.enum(['cash_on_delivery', 'paypal', 'bank_qr_image']),
+  bank_tx_id:     z.string().trim().min(1).max(100).optional(),
   customer_note:  z.string().max(500).optional(),
   scheduled_at:   z.string().datetime().optional(),
 })
@@ -256,6 +257,7 @@ interface OrderRow {
   currency:               string
   status:                 string
   paymentMethod:          string
+  bankTxId:               string | null
   customerNote:           string | null
   scheduledAt:            Date | null
   estimatedReadyAt:       Date | null
@@ -286,6 +288,7 @@ function shapeOrder(o: OrderRow, items?: Array<{
     currency:             o.currency,
     status:               o.status,
     paymentMethod:        o.paymentMethod,
+    bankTxId:             o.bankTxId,
     customerNote:         o.customerNote,
     scheduledAt:          o.scheduledAt,
     estimatedReadyAt:     o.estimatedReadyAt,
@@ -473,6 +476,7 @@ export async function create(req: Request, res: Response) {
       currency:      order.currency,
       status:        order.status,
       paymentMethod: order.paymentMethod,
+      bankTxId:      order.bankTxId,
       contactName:   order.contactName,
       contactPhone:  order.contactPhone,
       contactEmail:  order.contactEmail,
@@ -554,6 +558,7 @@ async function createOrderTx(input: {
         currency:              'EUR',
         status:                'pending_payment',
         paymentMethod:         input.body.payment_method,
+        bankTxId:              input.body.bank_tx_id ?? null,
         customerNote:          input.body.customer_note ?? null,
         estimatedReadyAt:      input.estimatedReadyAt,
         scheduledAt:           input.scheduledAt,
@@ -748,6 +753,24 @@ export async function listForAdmin(req: Request, res: Response) {
   })
 }
 
+/**
+ * GET /api/orders/admin/overdue — list đơn pending_payment quá hạn 1 ngày.
+ * Dùng cho cảnh báo trên admin/staff dashboard.
+ */
+export async function listOverduePending(_req: Request, res: Response) {
+  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
+  const orders = await prisma.order.findMany({
+    where: {
+      status:    'pending_payment',
+      createdAt: { lt: cutoff },
+    },
+    orderBy: { createdAt: 'asc' },
+    take:    100,
+    include: { items: { orderBy: { id: 'asc' } } },
+  })
+  res.json({ orders: orders.map(o => shapeOrder(o, o.items)) })
+}
+
 // =====================================================================
 // State machine + role guards (theo FEATURES.md §7)
 // =====================================================================
@@ -802,8 +825,6 @@ function findTransition(from: OrderStatus, to: OrderStatus, role: Role): Transit
 const changeStatusSchema = z.object({
   to:                z.enum(['pending_payment','paid','preparing','delivering','completed','cancelled']),
   reason:            z.string().trim().min(1).max(255).optional(),
-  bankTxId:          z.string().trim().min(1).max(100).optional(),
-  paymentReference:  z.string().trim().min(1).max(100).optional(),
   note:              z.string().trim().min(1).max(255).optional(),
 })
 
@@ -840,8 +861,7 @@ export async function changeStatus(req: Request, res: Response) {
   if (to === 'paid') {
     updateData.paidAt = now
     updateData.paymentConfirmer = { connect: { id: actorId } }
-    if (body.bankTxId)         updateData.bankTxId         = body.bankTxId
-    if (body.paymentReference) updateData.paymentReference = body.paymentReference
+    // bankTxId được khách nhập lúc tạo order; staff/admin không nhập lại ở đây.
   }
   if (to === 'completed') {
     updateData.deliveredAt = now

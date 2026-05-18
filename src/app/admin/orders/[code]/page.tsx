@@ -85,6 +85,7 @@ interface OrderResp {
   currency:            string
   status:              OrderStatus
   paymentMethod:       PaymentMethod
+  bankTxId:            string | null
   customerNote:        string | null
   scheduledAt:         string | null
   estimatedReadyAt:    string | null
@@ -367,6 +368,9 @@ export default function AdminOrderDetailPage() {
           <Card title={t('admin.detail.payment')}>
             <div className="space-y-3">
               <Row label={t('admin.detail.method')} value={paymentLabel(order.paymentMethod)} />
+              {order.bankTxId && (
+                <Row label={t('admin.detail.bank_tx_id')} value={order.bankTxId} mono />
+              )}
               <Row
                 label={t('admin.detail.placed_at')}
                 value={createdStr}

@@ -12,6 +12,10 @@ import { clientIp } from '@/lib/request'
 
 const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/
 
+// Số món featured tối đa hiển thị trên trang chủ "Our Specialties" (PopularDishes).
+// Đồng bộ với .slice(0, N) trong FE PopularDishes.tsx.
+const FEATURED_LIMIT = 6
+
 const createSchema = z.object({
   categoryId:    z.union([z.string(), z.number()]).transform(v => BigInt(v as string)),
   slug:          z.string().trim().regex(slugRegex, 'validation.slug_format').min(2).max(150),
@@ -341,6 +345,18 @@ export async function toggleFeatured(req: Request, res: Response) {
 
   const target = await prisma.dish.findUnique({ where: { id } })
   if (!target) throw NotFound('dish.not_found')
+
+  // Bật featured → check giới hạn 6 món (đồng bộ với FE PopularDishes.slice).
+  if (!target.isFeatured) {
+    const currentCount = await prisma.dish.count({ where: { isFeatured: true } })
+    if (currentCount >= FEATURED_LIMIT) {
+      throw BadRequest(
+        'dish.featured_limit_reached',
+        'FEATURED_LIMIT_REACHED',
+        { limit: FEATURED_LIMIT },
+      )
+    }
+  }
 
   const updated = await prisma.dish.update({
     where: { id }, data: { isFeatured: !target.isFeatured },

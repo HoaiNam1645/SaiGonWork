@@ -75,6 +75,7 @@ interface OrderRow {
   currency:       string
   status:         OrderStatus
   paymentMethod:  PaymentMethod
+  bankTxId:       string | null
   itemCount:      number
   items:          OrderItemLite[]
   distanceKm:     number | null
@@ -97,6 +98,7 @@ interface RestOrder {
   currency:         string
   status:           OrderStatus
   paymentMethod:    PaymentMethod
+  bankTxId:         string | null
   distanceKm:       number | null
   createdAt:        string
   customerNote:     string | null
@@ -219,7 +221,10 @@ export default function AdminOrdersPage() {
   // Modals state
   const [editing,        setEditing]        = useState<OrderRow | null>(null)
   const [cancelling,     setCancelling]     = useState<OrderRow | null>(null)
-  const [confirmingPay,  setConfirmingPay]  = useState<OrderRow | null>(null)
+
+  // Overdue pending_payment cảnh báo — chỉ hiện lần đầu vào page mỗi session.
+  const [overdue,     setOverdue]     = useState<OrderRow[] | null>(null)
+  const [showOverdue, setShowOverdue] = useState(false)
 
   const filtersActive = isAnyFilterActive(status, filters)
 
@@ -228,6 +233,25 @@ export default function AdminOrdersPage() {
   useEffect(() => {
     const id = window.setInterval(() => setNow(Date.now()), 1000)
     return () => window.clearInterval(id)
+  }, [])
+
+  // ─── Fetch overdue pending_payment mỗi lần vào page ───
+  useEffect(() => {
+    let alive = true
+    ;(async () => {
+      try {
+        const res = await api<{ orders: RestOrder[] }>('/orders/admin/overdue')
+        if (!alive) return
+        const rows = res.orders.map(restToRow)
+        if (rows.length > 0) {
+          setOverdue(rows)
+          setShowOverdue(true)
+        }
+      } catch {
+        /* swallow — cảnh báo nice-to-have, không chặn page */
+      }
+    })()
+    return () => { alive = false }
   }, [])
 
   useEffect(() => {
@@ -290,6 +314,7 @@ export default function AdminOrdersPage() {
         currency:      p.currency,
         status:        p.status,
         paymentMethod: p.paymentMethod,
+        bankTxId:      p.bankTxId,
         itemCount:     p.itemCount,
         items:         [],   // socket payload không có chi tiết — sẽ load khi user refresh
         distanceKm:    p.distanceKm,
@@ -353,8 +378,7 @@ export default function AdminOrdersPage() {
   }
 
   function onPickTransition(order: OrderRow, to: OrderStatus) {
-    if (to === 'cancelled')     { setCancelling(order);    return }
-    if (to === 'paid')          { setConfirmingPay(order); return }
+    if (to === 'cancelled')     { setCancelling(order); return }
     void applyStatusChange(order, to)
   }
 
@@ -487,14 +511,133 @@ export default function AdminOrdersPage() {
           onConfirmed={(o) => { replaceRow(o); setCancelling(null) }}
         />
       )}
-      {confirmingPay && (
-        <ConfirmPaymentModal
-          order={confirmingPay}
-          onClose={() => setConfirmingPay(null)}
-          onConfirmed={(o) => { replaceRow(o); setConfirmingPay(null) }}
+      {showOverdue && overdue && overdue.length > 0 && (
+        <OverduePendingModal
+          orders={overdue}
+          locale={locale}
+          t={t}
+          onClose={() => setShowOverdue(false)}
+          onView={(code) => {
+            setShowOverdue(false)
+            router.push(`/admin/orders/${encodeURIComponent(code)}`)
+          }}
         />
       )}
     </>
+  )
+}
+
+// =====================================================================
+// OverduePendingModal
+// =====================================================================
+
+function OverduePendingModal({
+  orders, locale, t, onClose, onView,
+}: {
+  orders: OrderRow[]
+  locale: string
+  t:      (k: string) => string
+  onClose: () => void
+  onView:  (code: string) => void
+}) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  const dtFmt = locale === 'de' ? 'de-DE' : 'en-GB'
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-xl bg-white shadow-2xl shadow-gray-900/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center justify-between px-5 py-4 border-b border-warning-100 bg-warning-50/60 rounded-t-xl">
+          <div className="flex items-center gap-2.5">
+            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-warning-100 text-warning-600">
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+                <line x1="12" y1="9" x2="12" y2="13" />
+                <line x1="12" y1="17" x2="12.01" y2="17" />
+              </svg>
+            </span>
+            <div>
+              <h3 className="text-base font-semibold text-gray-800">{t('admin.orders.overdue.title')}</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                {t('admin.orders.overdue.subtitle').replace('{{count}}', String(orders.length))}
+              </p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="text-gray-400 hover:text-gray-700 transition-colors w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-white/60"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-5 py-3 divide-y divide-gray-100">
+          {orders.map((o) => {
+            const ageMs   = Date.now() - new Date(o.createdAt).getTime()
+            const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000))
+            const created = new Date(o.createdAt).toLocaleString(dtFmt, {
+              day: '2-digit', month: '2-digit', year: '2-digit',
+              hour: '2-digit', minute: '2-digit',
+            })
+            return (
+              <div key={o.id} className="py-3 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-medium text-gray-800">{o.code}</span>
+                    <span className="text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded bg-warning-100 text-warning-600">
+                      {t('admin.orders.overdue.days_ago').replace('{{n}}', String(ageDays))}
+                    </span>
+                    {o.isGuest && (
+                      <span className="text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded text-gray-600 border border-gray-200">
+                        {t('admin.orders.guest_badge')}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-xs text-gray-500 mt-0.5 truncate">
+                    {o.contactName} · {o.contactPhone} · {o.contactEmail}
+                  </div>
+                  <div className="text-[11px] text-gray-400 mt-0.5 tabular-nums">{created}</div>
+                </div>
+                <div className="text-sm text-gray-800 font-medium tabular-nums whitespace-nowrap">
+                  {formatEuro(o.total)}
+                </div>
+                <button
+                  type="button"
+                  onClick={() => onView(o.code)}
+                  className="text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 whitespace-nowrap"
+                >
+                  {t('admin.orders.action.view')}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+
+        <div className="flex justify-end px-5 py-4 border-t border-gray-100 bg-gray-50/40 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm font-medium px-4 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors"
+          >
+            {t('admin.orders.overdue.dismiss')}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 
@@ -561,7 +704,17 @@ function OrderTableRow({ order, now, role, t, locale, onPickTransition, onView, 
         )}
       </TableCell>
 
-      <TableCell className="px-5 py-4 text-sm text-gray-500">{paymentLabel(order.paymentMethod)}</TableCell>
+      <TableCell className="px-5 py-4 text-sm text-gray-500">
+        <div>{paymentLabel(order.paymentMethod)}</div>
+        {order.bankTxId && (
+          <div
+            className="text-[11px] text-gray-400 font-mono mt-0.5 truncate max-w-[140px]"
+            title={order.bankTxId}
+          >
+            #{order.bankTxId}
+          </div>
+        )}
+      </TableCell>
 
       <TableCell className="px-5 py-4">
         <StatusSelect
@@ -838,55 +991,6 @@ function CancelOrderModal({
   )
 }
 
-function ConfirmPaymentModal({
-  order, onClose, onConfirmed,
-}: { order: OrderRow; onClose: () => void; onConfirmed: (o: RestOrder) => void }) {
-  const { t } = useI18n()
-  const [txId, setTxId] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [err,  setErr]  = useState<string | null>(null)
-
-  async function confirm() {
-    setBusy(true); setErr(null)
-    try {
-      const body: Record<string, string> = { to: 'paid' }
-      if (txId.trim()) body.bankTxId = txId.trim()
-      const res = await api<OrderMutationResponse>(`/orders/${encodeURIComponent(order.code)}/status`, {
-        method: 'POST', body,
-      })
-      onConfirmed(res.order)
-    } catch (e) {
-      setErr(e instanceof ApiError ? e.message : 'Failed to confirm')
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  return (
-    <ModalShell title={`${t('admin.orders.confirm_pay.title')} · ${order.code}`} onClose={onClose}>
-      <div className="p-5 space-y-3">
-        <p className="text-sm text-gray-600">{t('admin.orders.confirm_pay.body')}</p>
-        <Field label={t('admin.orders.confirm_pay.tx_id')}>
-          <TextInput value={txId} onChange={setTxId} placeholder={t('admin.orders.confirm_pay.tx_id_ph')} autoFocus />
-        </Field>
-        {err && <div className="rounded-lg bg-error-50 text-error-600 text-xs px-3 py-2 border border-error-100">{err}</div>}
-      </div>
-      <div className="flex justify-end gap-2 px-5 py-4 border-t border-gray-100 bg-gray-50/40">
-        <button type="button" onClick={onClose} disabled={busy}
-          className="text-sm font-medium px-4 py-2 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60"
-        >
-          {t('admin.orders.confirm_pay.cancel')}
-        </button>
-        <button type="button" onClick={confirm} disabled={busy}
-          className="text-sm font-medium px-4 py-2 rounded-lg bg-success-600 text-white hover:bg-success-700 disabled:opacity-60"
-        >
-          {busy ? t('admin.orders.edit.saving') : t('admin.orders.confirm_pay.confirm')}
-        </button>
-      </div>
-    </ModalShell>
-  )
-}
-
 // =====================================================================
 // Small UI helpers
 // =====================================================================
@@ -1058,6 +1162,7 @@ function restToRow(o: RestOrder): OrderRow {
     currency:      o.currency,
     status:        o.status,
     paymentMethod: o.paymentMethod,
+    bankTxId:      o.bankTxId,
     itemCount:     o.items.reduce((s, i) => s + i.quantity, 0),
     items:         o.items,
     distanceKm:    o.distanceKm,

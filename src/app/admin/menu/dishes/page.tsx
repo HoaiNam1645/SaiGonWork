@@ -85,6 +85,8 @@ export default function AdminDishesPage() {
   // Modals
   const [editing,  setEditing]  = useState<Dish | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Dish | null>(null)
+  // Popup cảnh báo (vd khi vượt giới hạn featured)
+  const [notice,   setNotice]   = useState<{ title: string; body: string } | null>(null)
 
   const fmtEUR = useMemo(
     () => new Intl.NumberFormat(locale === 'de' ? 'de-DE' : 'en-US', { style: 'currency', currency: 'EUR' }),
@@ -143,7 +145,17 @@ export default function AdminDishesPage() {
       const res = await api<{ dish: Dish }>(`/admin/dishes/${d.id}/toggle-featured`, { method: 'POST' })
       setItems(prev => prev?.map(x => x.id === d.id ? res.dish : x) ?? prev)
     } catch (e) {
-      alert(e instanceof ApiError ? e.message : 'Failed')
+      if (e instanceof ApiError && e.code === 'FEATURED_LIMIT_REACHED') {
+        setNotice({
+          title: t('admin.dish.featured_limit.title'),
+          body:  e.message,
+        })
+        return
+      }
+      setNotice({
+        title: t('admin.dish.toggle_failed.title'),
+        body:  e instanceof ApiError ? e.message : 'Failed',
+      })
     }
   }
 
@@ -272,7 +284,74 @@ export default function AdminDishesPage() {
           onDeleted={() => { setDeleting(null); void fetchList() }}
         />
       )}
+      {notice && (
+        <NoticeModal
+          title={notice.title}
+          body={notice.body}
+          dismissLabel={t('admin.dish.notice.dismiss')}
+          onClose={() => setNotice(null)}
+        />
+      )}
     </>
+  )
+}
+
+// =====================================================================
+// NoticeModal — popup cảnh báo chung (warning style)
+// =====================================================================
+
+function NoticeModal({
+  title, body, dismissLabel, onClose,
+}: { title: string; body: string; dismissLabel: string; onClose: () => void }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-md rounded-xl bg-white shadow-2xl shadow-gray-900/10"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-center gap-2.5 px-5 py-4 border-b border-warning-100 bg-warning-50/60 rounded-t-xl">
+          <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-warning-100 text-warning-600">
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </span>
+          <h3 className="text-base font-semibold text-gray-800 flex-1">{title}</h3>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="text-gray-400 hover:text-gray-700 transition-colors w-7 h-7 inline-flex items-center justify-center rounded-lg hover:bg-white/60"
+          >
+            <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div className="px-5 py-4">
+          <p className="text-sm text-gray-700" style={{ lineHeight: 1.6 }}>{body}</p>
+        </div>
+        <div className="flex justify-end px-5 py-4 border-t border-gray-100 bg-gray-50/40 rounded-b-xl">
+          <button
+            type="button"
+            onClick={onClose}
+            className="text-sm font-medium px-4 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors"
+          >
+            {dismissLabel}
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
 

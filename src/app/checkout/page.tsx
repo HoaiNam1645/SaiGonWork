@@ -10,6 +10,7 @@ import Footer from '@/components/Footer'
 import AddressAutocomplete from '@/components/AddressAutocomplete'
 import SavedAddressPicker, { type SavedAddress } from '@/components/SavedAddressPicker'
 import GuestOtpModal from '@/components/GuestOtpModal'
+import BankTransferModal from '@/components/BankTransferModal'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
@@ -89,6 +90,9 @@ export default function CheckoutPage() {
   const [submitting,  setSubmitting]  = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [showOtp,     setShowOtp]     = useState(false)
+  const [showBank,    setShowBank]    = useState(false)
+  // Mã giao dịch khách nhập trong BankTransferModal — gửi kèm khi tạo order.
+  const [bankTxId,    setBankTxId]    = useState<string | null>(null)
 
   // ─── Prefill từ user khi login ───
   useEffect(() => {
@@ -253,7 +257,7 @@ export default function CheckoutPage() {
     items.length > 0
 
   // ─── Build payload chung ───
-  function buildOrderBody() {
+  function buildOrderBody(bankTxIdArg?: string | null) {
     const itemsWithIds = items.filter(i => i.dishId)
     if (itemsWithIds.length === 0) {
       throw new Error(t('checkout.error.cart_empty'))
@@ -284,6 +288,7 @@ export default function CheckoutPage() {
         note:     i.note || undefined,
       })),
       payment_method: PAYMENT_API_MAP[payment],
+      bank_tx_id:     (bankTxIdArg ?? bankTxId ?? undefined) || undefined,
       customer_note:  note.trim() || undefined,
     }
   }
@@ -302,16 +307,17 @@ export default function CheckoutPage() {
     }
   }
 
-  async function submitCustomer() {
+  async function submitCustomer(tx?: string | null) {
     setSubmitting(true)
     setSubmitError(null)
     try {
-      const body = buildOrderBody()
+      const body = buildOrderBody(tx)
       const res = await api<CreateOrderResponse>('/orders', {
         method: 'POST',
         body,
         locale,
       })
+      setShowBank(false)
       await clearCart()
       router.push(`/orders/${res.order.code}`)
     } catch (e) {
@@ -332,6 +338,7 @@ export default function CheckoutPage() {
         guestToken: token,
         locale,
       })
+      setShowBank(false)
       // Guest: lưu permanent token để tra cứu sau
       if (res.guestToken) saveOrderToken(res.order.code, res.guestToken)
       await clearCart()
@@ -348,10 +355,29 @@ export default function CheckoutPage() {
   function placeOrder() {
     if (!requiredOk) return
     setSubmitError(null)
+    // Payment là bank_qr_image → mở popup QR + nhập mã giao dịch trước.
+    if (payment === 'bank') {
+      setBankTxId(null)
+      setShowBank(true)
+      return
+    }
+    // (Các payment method khác trong tương lai vẫn dùng flow cũ.)
     if (user) {
       void submitCustomer()
     } else {
-      // Guest → mở OTP modal
+      setShowOtp(true)
+    }
+  }
+
+  // Gọi từ BankTransferModal khi khách bấm "Xác nhận" sau khi nhập mã giao dịch.
+  function onBankConfirmed(tx: string) {
+    setBankTxId(tx)
+    setSubmitError(null)
+    if (user) {
+      void submitCustomer(tx)
+    } else {
+      // Guest: đóng bank modal, mở OTP — submitWithGuestToken sẽ đọc bankTxId từ state.
+      setShowBank(false)
       setShowOtp(true)
     }
   }
@@ -790,6 +816,18 @@ export default function CheckoutPage() {
             await submitWithGuestToken(token)
           }}
           onClose={() => setShowOtp(false)}
+        />
+      )}
+
+      {showBank && store && (
+        <BankTransferModal
+          store={store}
+          amount={total}
+          reference={email.trim().toLowerCase() || undefined}
+          submitting={submitting}
+          errorText={submitError}
+          onConfirm={onBankConfirmed}
+          onClose={() => { if (!submitting) setShowBank(false) }}
         />
       )}
     </>
