@@ -86,22 +86,36 @@ const de: Dict = {
   'email.otp.body': 'Bitte verwenden Sie den folgenden Code, um Ihre Bestellung zu bestätigen. Der Code ist {{minutes}} Minuten gültig.',
   'email.otp.warning': 'Wenn Sie diesen Code nicht angefordert haben, ignorieren Sie diese E-Mail.',
 
+  // ----- Common email blocks dùng chéo nhiều template -----
+  'email.order.hello':         'Hallo {{name}},',
+  'email.order.items_header':  'Bestellte Artikel',
+  'email.order.subtotal':      'Zwischensumme',
+  'email.order.delivery_fee':  'Liefergebühr',
+  'email.order.total_label':   'Gesamt',
+  'email.order.payment_label': 'Zahlungsart',
+  'email.order.track_link':    'Bestellung ansehen',
+
   'email.order_confirm.subject': 'Bestellbestätigung {{code}} — Sai Gon Wok',
   'email.order_confirm.heading': 'Vielen Dank für Ihre Bestellung!',
-  'email.order_confirm.body': 'Wir haben Ihre Bestellung erhalten und bereiten sie vor.',
-  'email.order_confirm.track_link': 'Bestellung verfolgen',
+  'email.order_confirm.body':    'Wir haben Ihre Bestellung erhalten. Folgen Sie der Zahlungsanweisung unten, damit die Küche mit der Zubereitung beginnen kann.',
+  'email.order_confirm.cash_note':    'Sie zahlen bar bei der Lieferung — kein weiterer Schritt erforderlich.',
+  'email.order_confirm.bank_note':    'Bitte überweisen Sie den Betrag mit der Bestellnummer „{{code}}" als Verwendungszweck. Die Küche startet nach Zahlungseingang.',
+  'email.order_confirm.paypal_note':  'Bitte senden Sie den Betrag über PayPal mit der Bestellnummer „{{code}}" als Nachricht. Die Küche startet nach Zahlungseingang.',
 
   'email.payment_confirmed.subject': 'Zahlung bestätigt {{code}} — Sai Gon Wok',
   'email.payment_confirmed.heading': 'Ihre Zahlung wurde bestätigt',
-  'email.payment_confirmed.body': 'Vielen Dank! Die Küche bereitet jetzt Ihre Bestellung vor.',
+  'email.payment_confirmed.body':    'Vielen Dank! Wir haben Ihre Zahlung erhalten. Die Küche bereitet Ihre Bestellung jetzt zu.',
 
-  'email.status_update.subject': 'Update zu Bestellung {{code}}',
-  'email.status_update.heading': 'Status-Update',
-  'email.status_update.body': 'Ihre Bestellung hat den Status „{{status}}".',
+  'email.delivering.subject': 'Ihre Bestellung {{code}} ist unterwegs',
+  'email.delivering.heading': 'Ihr Essen ist unterwegs',
+  'email.delivering.body':    'Unser Fahrer hat Ihre Bestellung abgeholt und ist auf dem Weg zu Ihrer angegebenen Adresse. Bitte halten Sie Ihr Telefon bereit, falls der Fahrer Sie kontaktiert.',
 
-  'email.cancelled.subject': 'Bestellung {{code}} storniert',
-  'email.cancelled.heading': 'Ihre Bestellung wurde storniert',
-  'email.cancelled.body': 'Grund: {{reason}}',
+  'email.cancelled.subject':  'Bestellung {{code}} storniert',
+  'email.cancelled.heading':  'Ihre Bestellung wurde storniert',
+  'email.cancelled.body':     'Leider mussten wir Ihre Bestellung stornieren.',
+  'email.cancelled.reason_label': 'Grund:',
+  'email.cancelled.refund_paid':  'Da Sie bereits bezahlt haben, erstatten wir den vollen Betrag innerhalb weniger Werktage zurück.',
+  'email.cancelled.refund_cash':  'Da Sie noch nicht bezahlt haben, fällt für Sie keine Gebühr an.',
 
   // Account deactivation
   'email.account_deactivated.subject': 'Ihr Konto wurde deaktiviert — Sai Gon Wok',
@@ -204,22 +218,36 @@ const en: Dict = {
   'email.otp.body': 'Please use the following code to verify your order. The code is valid for {{minutes}} minutes.',
   'email.otp.warning': 'If you did not request this code, please ignore this email.',
 
+  // ----- Common email blocks shared across templates -----
+  'email.order.hello':         'Hi {{name}},',
+  'email.order.items_header':  'Items ordered',
+  'email.order.subtotal':      'Subtotal',
+  'email.order.delivery_fee':  'Delivery fee',
+  'email.order.total_label':   'Total',
+  'email.order.payment_label': 'Payment method',
+  'email.order.track_link':    'View order',
+
   'email.order_confirm.subject': 'Order confirmation {{code}} — Sai Gon Wok',
   'email.order_confirm.heading': 'Thank you for your order!',
-  'email.order_confirm.body': 'We have received your order and are preparing it.',
-  'email.order_confirm.track_link': 'Track order',
+  'email.order_confirm.body':    'We have received your order. Follow the payment instructions below so our kitchen can start preparing.',
+  'email.order_confirm.cash_note':    'You will pay in cash on delivery — no further action needed.',
+  'email.order_confirm.bank_note':    'Please transfer the amount with order code "{{code}}" as the reference. The kitchen starts once payment arrives.',
+  'email.order_confirm.paypal_note':  'Please send the amount via PayPal with order code "{{code}}" in the note. The kitchen starts once payment arrives.',
 
   'email.payment_confirmed.subject': 'Payment confirmed {{code}} — Sai Gon Wok',
   'email.payment_confirmed.heading': 'Your payment has been confirmed',
-  'email.payment_confirmed.body': 'Thank you! The kitchen is now preparing your order.',
+  'email.payment_confirmed.body':    'Thank you! We have received your payment. The kitchen is preparing your order now.',
 
-  'email.status_update.subject': 'Update on order {{code}}',
-  'email.status_update.heading': 'Status update',
-  'email.status_update.body': 'Your order is now "{{status}}".',
+  'email.delivering.subject': 'Your order {{code}} is on the way',
+  'email.delivering.heading': 'Your food is on the way',
+  'email.delivering.body':    'Our driver has picked up your order and is on the way to the address you provided. Please keep your phone handy in case the driver needs to contact you.',
 
-  'email.cancelled.subject': 'Order {{code}} cancelled',
-  'email.cancelled.heading': 'Your order has been cancelled',
-  'email.cancelled.body': 'Reason: {{reason}}',
+  'email.cancelled.subject':  'Order {{code}} cancelled',
+  'email.cancelled.heading':  'Your order has been cancelled',
+  'email.cancelled.body':     'Unfortunately we had to cancel your order.',
+  'email.cancelled.reason_label': 'Reason:',
+  'email.cancelled.refund_paid':  'Since you have already paid, we will refund the full amount within a few business days.',
+  'email.cancelled.refund_cash':  'Since you had not yet paid, no charge will be made.',
 
   // Account deactivation
   'email.account_deactivated.subject': 'Your account has been deactivated — Sai Gon Wok',

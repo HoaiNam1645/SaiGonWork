@@ -9,6 +9,18 @@ import { geocodeAddress } from '@/lib/geocode'
 import { computeDeliveryFee, computeSubtotal, dec, round2 } from '@/lib/pricing'
 import { emitOrderCreated, emitOrderStatusChanged } from '@/lib/socket'
 import { createNotification } from '@/lib/notifications'
+import { sendMail } from '@/lib/mailer'
+import {
+  renderOrderConfirmEmail,
+  renderPaymentConfirmedEmail,
+  renderOrderDeliveringEmail,
+  renderOrderCancelledEmail,
+  type OrderEmailContext,
+} from '@/lib/emailTemplates'
+import { env } from '@/config/env'
+import { type Locale } from '@/i18n'
+import { logAuditAsync } from '@/lib/auditLog'
+import { clientIp } from '@/lib/request'
 
 // =====================================================================
 // Schemas
@@ -309,6 +321,70 @@ function shapeOrder(o: OrderRow, items?: Array<{
 }
 
 // =====================================================================
+// Email helpers — order status notifications
+// =====================================================================
+
+type OrderRecordForEmail = {
+  id:            bigint
+  code:          string
+  userId:        bigint | null
+  contactName:   string
+  contactEmail:  string
+  subtotal:      Prisma.Decimal
+  deliveryFee:   Prisma.Decimal
+  total:         Prisma.Decimal
+  currency:      string
+  paymentMethod: string
+  locale:        string
+  paidAt:        Date | null
+  items?: Array<{ dishName: string; quantity: number; lineTotal: Prisma.Decimal }>
+}
+
+/** Build context dùng cho tất cả render*Email. Sinh tracking URL kèm guest token
+ *  nếu là đơn guest. */
+function buildOrderEmailContext(o: OrderRecordForEmail): OrderEmailContext {
+  const base = env.PUBLIC_APP_URL.replace(/\/$/, '')
+  let trackingUrl = `${base}/orders/${encodeURIComponent(o.code)}`
+  if (o.userId == null) {
+    const tok = signGuestToken(
+      { orderCode: o.code, email: o.contactEmail, type: 'guest_order' },
+      '30d',
+    )
+    trackingUrl += `?token=${encodeURIComponent(tok)}`
+  }
+  return {
+    code:          o.code,
+    name:          o.contactName,
+    subtotal:      Number(o.subtotal),
+    deliveryFee:   Number(o.deliveryFee),
+    total:         Number(o.total),
+    currency:      o.currency,
+    paymentMethod: o.paymentMethod as OrderEmailContext['paymentMethod'],
+    items:         (o.items ?? []).map(i => ({
+      name:      i.dishName,
+      quantity:  i.quantity,
+      lineTotal: Number(i.lineTotal),
+    })),
+    trackingUrl,
+  }
+}
+
+/** Fire-and-forget — log error nhưng không throw để không block flow. */
+function sendOrderEmailAsync(
+  to: string,
+  mail: { subject: string; text: string; html: string },
+  tag: string,
+) {
+  void (async () => {
+    try {
+      await sendMail({ to, ...mail })
+    } catch (e) {
+      console.error(`[order-email:${tag}] sendMail failed:`, e)
+    }
+  })()
+}
+
+// =====================================================================
 // Handlers
 // =====================================================================
 
@@ -440,6 +516,7 @@ export async function create(req: Request, res: Response) {
         total,
         estimatedReadyAt,
         scheduledAt: body.scheduled_at ? new Date(body.scheduled_at) : null,
+        locale: req.locale as Locale,
       })
       break
     } catch (e) {
@@ -514,6 +591,28 @@ export async function create(req: Request, res: Response) {
     console.warn('[notif] create order_created failed:', e)
   }
 
+  // Email xác nhận đơn — fire-and-forget, không block response.
+  const ctx = buildOrderEmailContext({
+    id:            order.id,
+    code:          order.code,
+    userId:        order.userId,
+    contactName:   order.contactName,
+    contactEmail:  order.contactEmail,
+    subtotal:      order.subtotal,
+    deliveryFee:   order.deliveryFee,
+    total:         order.total,
+    currency:      order.currency,
+    paymentMethod: order.paymentMethod,
+    locale:        order.locale,
+    paidAt:        order.paidAt,
+    items:         order.items,
+  })
+  sendOrderEmailAsync(
+    order.contactEmail,
+    renderOrderConfirmEmail(order.locale as Locale, ctx),
+    `confirm:${order.code}`,
+  )
+
   res.status(201).json({
     order: shapeOrder(order, order.items),
     paymentInstructions,
@@ -537,6 +636,7 @@ async function createOrderTx(input: {
   total: number
   estimatedReadyAt: Date
   scheduledAt: Date | null
+  locale: Locale
 }) {
   return prisma.$transaction(async tx => {
     const o = await tx.order.create({
@@ -562,6 +662,7 @@ async function createOrderTx(input: {
         customerNote:          input.body.customer_note ?? null,
         estimatedReadyAt:      input.estimatedReadyAt,
         scheduledAt:           input.scheduledAt,
+        locale:                input.locale,
       },
     })
 
@@ -887,6 +988,23 @@ export async function changeStatus(req: Request, res: Response) {
     return u
   })
 
+  // Audit log: track ai đổi status đơn nào — cross-entity reporting cho admin.
+  logAuditAsync({
+    action:     to === 'cancelled' ? 'admin.order.cancelled' : 'admin.order.status_changed',
+    entityType: 'order',
+    entityId:   updated.id,
+    actorId,
+    actorRole:  role,
+    diff:       {
+      code:   updated.code,
+      from,
+      to,
+      ...(body.reason ? { reason: body.reason } : {}),
+      ...(body.note   ? { note:   body.note   } : {}),
+    },
+    ipAddress:  clientIp(req),
+  })
+
   // Realtime push to staff dashboard + customer order room
   try {
     emitOrderStatusChanged({
@@ -927,6 +1045,31 @@ export async function changeStatus(req: Request, res: Response) {
     where:   { code },
     include: { items: { orderBy: { id: 'asc' } } },
   })
+
+  // Email khách theo transition: paid (non-cash) / delivering / cancelled.
+  if (fresh) {
+    const ctx = buildOrderEmailContext({
+      id: fresh.id, code: fresh.code, userId: fresh.userId,
+      contactName: fresh.contactName, contactEmail: fresh.contactEmail,
+      subtotal: fresh.subtotal, deliveryFee: fresh.deliveryFee, total: fresh.total,
+      currency: fresh.currency, paymentMethod: fresh.paymentMethod,
+      locale: fresh.locale, paidAt: fresh.paidAt, items: fresh.items,
+    })
+    const locale = fresh.locale as Locale
+
+    if (to === 'paid' && fresh.paymentMethod !== 'cash_on_delivery') {
+      sendOrderEmailAsync(fresh.contactEmail, renderPaymentConfirmedEmail(locale, ctx), `paid:${fresh.code}`)
+    } else if (to === 'delivering') {
+      sendOrderEmailAsync(fresh.contactEmail, renderOrderDeliveringEmail(locale, ctx), `delivering:${fresh.code}`)
+    } else if (to === 'cancelled') {
+      sendOrderEmailAsync(
+        fresh.contactEmail,
+        renderOrderCancelledEmail(locale, { ...ctx, reason: body.reason ?? '—', wasPaid: fresh.paidAt != null }),
+        `cancelled:${fresh.code}`,
+      )
+    }
+  }
+
   res.json({ order: fresh ? shapeOrder(fresh, fresh.items) : null })
 }
 
@@ -1059,6 +1202,16 @@ export async function adminCancelOrder(req: Request, res: Response) {
     })
   })
 
+  logAuditAsync({
+    action:     'admin.order.cancelled',
+    entityType: 'order',
+    entityId:   order.id,
+    actorId,
+    actorRole:  role,
+    diff:       { code, from, to: 'cancelled', reason: body.reason },
+    ipAddress:  clientIp(req),
+  })
+
   try {
     emitOrderStatusChanged({ code, from, to: 'cancelled', at: now.toISOString() })
   } catch (e) {
@@ -1082,5 +1235,21 @@ export async function adminCancelOrder(req: Request, res: Response) {
     where:   { code },
     include: { items: { orderBy: { id: 'asc' } } },
   })
+
+  if (fresh) {
+    const ctx = buildOrderEmailContext({
+      id: fresh.id, code: fresh.code, userId: fresh.userId,
+      contactName: fresh.contactName, contactEmail: fresh.contactEmail,
+      subtotal: fresh.subtotal, deliveryFee: fresh.deliveryFee, total: fresh.total,
+      currency: fresh.currency, paymentMethod: fresh.paymentMethod,
+      locale: fresh.locale, paidAt: fresh.paidAt, items: fresh.items,
+    })
+    sendOrderEmailAsync(
+      fresh.contactEmail,
+      renderOrderCancelledEmail(fresh.locale as Locale, { ...ctx, reason: body.reason, wasPaid: fresh.paidAt != null }),
+      `cancelled:${fresh.code}`,
+    )
+  }
+
   res.json({ order: fresh ? shapeOrder(fresh, fresh.items) : null })
 }

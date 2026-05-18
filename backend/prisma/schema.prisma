@@ -293,6 +293,9 @@ model Order {
   paidAt                 DateTime?     @map("paid_at")
   paidConfirmedBy        BigInt?       @map("paid_confirmed_by")
 
+  // Locale của khách lúc đặt đơn — dùng cho email status sau này.
+  locale                 String        @default("de") @db.VarChar(2)
+
   // Other
   customerNote           String?       @map("customer_note") @db.VarChar(500)
   cancelledReason        String?       @map("cancelled_reason") @db.VarChar(255)
