@@ -38,7 +38,47 @@ const schema = z.object({
   DISPOSABLE_CHECK_MX: z.coerce.boolean().default(false),
 
   OSRM_URL: z.string().default('https://router.project-osrm.org'),
+
+  // ----- Proxy / IP detection -----
+  // Số hop reverse proxy app đứng sau (Nginx=1, Cloudflare→Nginx=2, ...).
+  // Hoặc dùng từ khoá: 'loopback' / 'linklocal' / 'uniquelocal' / 'false' / cidr list.
+  // Xem: https://expressjs.com/en/guide/behind-proxies.html
+  TRUST_PROXY: z.string().default('1'),
+  // Nếu deploy sau Cloudflare → bật để dùng header CF-Connecting-IP làm canonical IP.
+  TRUST_CLOUDFLARE: z.coerce.boolean().default(false),
 })
 
 export const env = schema.parse(process.env)
 export type Env = typeof env
+
+// =====================================================================
+// Production safety checks — fail fast at boot nếu config nguy hiểm
+// =====================================================================
+if (env.NODE_ENV === 'production') {
+  const errors: string[] = []
+
+  // URL không được trỏ về localhost trong production
+  if (/(localhost|127\.0\.0\.1)/i.test(env.CORS_ORIGIN)) {
+    errors.push(`CORS_ORIGIN cannot point to localhost in production: ${env.CORS_ORIGIN}`)
+  }
+  if (/(localhost|127\.0\.0\.1)/i.test(env.PUBLIC_APP_URL)) {
+    errors.push(`PUBLIC_APP_URL cannot point to localhost in production: ${env.PUBLIC_APP_URL}`)
+  }
+
+  // SMTP bắt buộc — nếu thiếu thì OTP/order email không gửi được
+  if (!env.MAIL_USERNAME || !env.MAIL_PASSWORD) {
+    errors.push('MAIL_USERNAME and MAIL_PASSWORD are required in production')
+  }
+
+  // JWT secret không được dùng giá trị mặc định / quá yếu (>=32 ký tự khuyến nghị)
+  if (env.JWT_ACCESS_SECRET.length < 32 || env.JWT_REFRESH_SECRET.length < 32) {
+    errors.push('JWT_ACCESS_SECRET and JWT_REFRESH_SECRET must be at least 32 chars in production')
+  }
+
+  if (errors.length > 0) {
+    console.error('\n[env] FATAL — production config invalid:')
+    for (const e of errors) console.error('  •', e)
+    console.error()
+    throw new Error('Invalid production environment — see errors above')
+  }
+}

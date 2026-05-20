@@ -8,18 +8,36 @@ import { env } from '@/config/env'
 import { apiRouter } from '@/routes'
 import { errorHandler, notFoundHandler } from '@/middleware/error'
 import { i18nMiddleware } from '@/i18n'
+import { corsOriginCallback } from '@/lib/corsOrigin'
+
+/** Parse env TRUST_PROXY → giá trị Express chấp nhận. */
+function parseTrustProxy(v: string): number | boolean | string | string[] {
+  const trimmed = v.trim()
+  if (trimmed === 'false' || trimmed === '0') return false
+  if (trimmed === 'true')                      return true
+  const n = Number(trimmed)
+  if (!Number.isNaN(n) && Number.isInteger(n)) return n
+  // Comma-separated → CIDR list / keyword list (vd "loopback,linklocal,10.0.0.0/8")
+  if (trimmed.includes(',')) return trimmed.split(',').map(s => s.trim()).filter(Boolean)
+  return trimmed
+}
 
 export function createApp() {
   const app = express()
 
   // Trust X-Forwarded-* header từ proxy ngược (Nginx, Cloudflare, ...).
-  // 1 = chỉ tin 1 hop. Production sau nhiều proxy thì tăng số hoặc dùng CIDR.
-  app.set('trust proxy', 1)
+  // Cấu hình qua env TRUST_PROXY:
+  //   '1'         → Nginx duy nhất (mặc định)
+  //   '2'         → Cloudflare → Nginx
+  //   'loopback'  → chỉ tin 127.*
+  //   'false'/'0' → KHÔNG tin XFF (app trực tiếp, không proxy)
+  //   '10.0.0.0/8,172.16.0.0/12' → CIDR list cụ thể (an toàn nhất)
+  app.set('trust proxy', parseTrustProxy(env.TRUST_PROXY))
 
   app.use(helmet())
   app.use(
     cors({
-      origin: env.CORS_ORIGIN.split(',').map(s => s.trim()),
+      origin: corsOriginCallback,
       credentials: true,
     }),
   )

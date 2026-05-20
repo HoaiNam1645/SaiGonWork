@@ -1,5 +1,17 @@
-// Thin fetch wrapper cho backend Express ở localhost:4000 (hoặc env)
-const API_BASE = process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:4000/api'
+// Thin fetch wrapper cho backend Express. Cần NEXT_PUBLIC_API_URL set tại build.
+// Trong dev, .env.local fallback http://localhost:4000/api. Production build phải
+// có env này — nếu thiếu thì module fail loud thay vì im lặng gọi localhost.
+const API_BASE = (() => {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL
+  if (fromEnv) return fromEnv
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      '[api] NEXT_PUBLIC_API_URL is required for production build. ' +
+      'Set it in .env or your CI/CD env before `next build`.',
+    )
+  }
+  return 'http://localhost:4000/api'
+})()
 
 export class ApiError extends Error {
   constructor(

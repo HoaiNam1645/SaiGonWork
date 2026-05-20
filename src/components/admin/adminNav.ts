@@ -2,11 +2,7 @@ import {
   IconDashboard,
   IconOrders,
   IconMenu,
-  IconTag,
   IconUsers,
-  IconSettings,
-  IconChart,
-  IconShield,
 } from './AdminIcons'
 
 export interface AdminNavLeaf {
@@ -51,7 +47,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
           { labelKey: 'admin.nav.options',    href: '/admin/menu/options' },
         ],
       },
-      { labelKey: 'admin.nav.promotions', icon: IconTag, href: '/admin/promotions' },
+      // TODO: bật lại khi /admin/promotions implement xong
     ],
   },
   {
@@ -67,12 +63,5 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       },
     ],
   },
-  {
-    labelKey: 'admin.nav.config',
-    items: [
-      { labelKey: 'admin.nav.settings', icon: IconSettings, href: '/admin/settings' },
-      { labelKey: 'admin.nav.reports',  icon: IconChart,    href: '/admin/reports' },
-      { labelKey: 'admin.nav.audit',    icon: IconShield,   href: '/admin/audit-log' },
-    ],
-  },
+  // TODO: thêm lại group `admin.nav.config` (settings/reports/audit) khi các trang xong.
 ]

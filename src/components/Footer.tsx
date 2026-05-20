@@ -2,12 +2,18 @@
 
 import { useMenuCategories } from '@/lib/menuApi'
 import { useI18n } from '@/i18n/I18nContext'
+import { useStoreSettings } from '@/lib/storeApi'
+import { STORE_FALLBACK } from '@/config/store'
 import { InstagramIcon, FacebookIcon, MapPinIcon, ClockIcon } from './Icons'
 
 export default function Footer() {
   const { t, tCategory } = useI18n()
   const menuCategories = useMenuCategories()
+  const { store } = useStoreSettings()
   const year = new Date().getFullYear()
+
+  // Address từ DB (single string), fallback constants nếu chưa load.
+  const addressLine = store?.address ?? STORE_FALLBACK.address.fullLine
 
   return (
     <footer className="bg-wood-dark border-t border-gold/20 relative">
@@ -66,10 +72,7 @@ export default function Footer() {
             <ul className="space-y-3 text-parchment/60 text-sm">
               <li className="flex items-start gap-2.5">
                 <MapPinIcon className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
-                <span>
-                  Kanalstraße 10<br />
-                  70182 Stuttgart
-                </span>
+                <span className="whitespace-pre-line">{addressLine}</span>
               </li>
               <li className="flex items-start gap-2.5">
                 <ClockIcon className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />

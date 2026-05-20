@@ -1,10 +1,14 @@
 'use client'
 
 import { useI18n } from '@/i18n/I18nContext'
+import { useStoreSettings } from '@/lib/storeApi'
+import { STORE_FALLBACK, mapsUrl } from '@/config/store'
 import { MapPinIcon, ClockIcon, TruckIcon, ArrowRightIcon } from './Icons'
 
 export default function ContactSection() {
   const { t } = useI18n()
+  const { store } = useStoreSettings()
+  const addressLine = store?.address ?? STORE_FALLBACK.address.fullLine
   return (
     <section id="contact" className="bg-parchment py-24 relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
@@ -27,13 +31,13 @@ export default function ContactSection() {
               <MapPinIcon className="w-5 h-5" />
             </div>
             <h3 className="font-display font-bold text-wood-dark text-xl mb-3">{t('contact.address')}</h3>
-            <p className="text-wood/75 leading-relaxed mb-4">
-              Kanalstraße 10<br />
-              70182 Stuttgart<br />
+            <p className="text-wood/75 leading-relaxed mb-4 whitespace-pre-line">
+              {addressLine}
+              {'\n'}
               {t('contact.address.country')}
             </p>
             <a
-              href="https://maps.google.com/?q=Kanalstraße+10,+70182+Stuttgart"
+              href={mapsUrl(addressLine)}
               target="_blank"
               rel="noopener noreferrer"
               className="inline-flex items-center gap-1 text-gold hover:text-gold-light text-sm font-semibold group"

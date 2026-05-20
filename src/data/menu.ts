@@ -134,12 +134,12 @@ export const menuCategories: MenuCategory[] = [
   },
 ]
 
+// Đã trích `address` ra `src/config/store.ts` (STORE_FALLBACK) — đừng thêm lại
+// địa chỉ vào file này; dùng `useStoreSettings()` cho data động.
 export const restaurantInfo = {
   name: 'Sai Gon Wok',
   tagline: 'Authentische vietnamesische Küche — Ich Bin Da',
   description: 'Erleben Sie die authentischen Aromen Vietnams mitten in Stuttgart. Frische Zutaten, traditionelle Rezepte und herzliche Gastfreundschaft — das ist Sai Gon Wok.',
-  address: 'Kanalstraße 10, 70182 Stuttgart',
-  phone: '',
   hours: {
     weekdays: 'Mo – Sa: 11:00 – 21:30 Uhr',
     sunday: 'Sonntag: Geschlossen',

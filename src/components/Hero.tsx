@@ -3,10 +3,14 @@
 import Image from 'next/image'
 import { restaurantInfo } from '@/data/menu'
 import { useI18n } from '@/i18n/I18nContext'
+import { useStoreSettings } from '@/lib/storeApi'
+import { STORE_FALLBACK } from '@/config/store'
 import { MapPinIcon, ClockIcon, ArrowRightIcon } from './Icons'
 
 export default function Hero() {
   const { t } = useI18n()
+  const { store } = useStoreSettings()
+  const addressLine = store?.address ?? STORE_FALLBACK.address.fullLine
   return (
     <section className="relative pt-24 sm:pt-28 pb-16 overflow-hidden">
       {/* Sumi-e mountain landscape — bottom right of hero */}
@@ -122,7 +126,7 @@ export default function Hero() {
           <div className="relative mt-8 pt-6 border-t border-wood-dark/15 flex flex-col sm:flex-row gap-4 sm:gap-8 justify-center lg:justify-end items-center text-wood-dark/80 text-sm">
             <div className="flex items-center gap-2">
               <MapPinIcon className="w-4 h-4 text-gold" />
-              <span className="font-medium">{restaurantInfo.address}</span>
+              <span className="font-medium">{addressLine}</span>
             </div>
             <div className="flex items-center gap-2">
               <ClockIcon className="w-4 h-4 text-gold" />

@@ -1,7 +1,16 @@
 import type { Request } from 'express'
 import os from 'os'
+import { env } from '@/config/env'
 
 export type IpType = 'loopback' | 'lan' | 'public' | 'unknown'
+
+/** Đọc 1 header (string đầu tiên nếu Express trả array). */
+function headerValue(req: Request, name: string): string | undefined {
+  const v = req.headers[name]
+  if (typeof v === 'string' && v.length > 0) return v.trim()
+  if (Array.isArray(v) && v.length > 0)      return String(v[0]).trim()
+  return undefined
+}
 
 export interface ClientInfo {
   /** IP đã normalize (strip ::ffff: prefix, không IPv4-mapped IPv6). Có thể undefined nếu request không có IP. */
@@ -53,23 +62,46 @@ export function classifyIp(ip: string | undefined): IpType {
   return 'public'
 }
 
-/** Lấy thông tin client request đầy đủ. */
+/** Lấy thông tin client request đầy đủ.
+ *
+ * Logic chống spoof:
+ *  - `req.socket.remoteAddress` = hop trực tiếp gọi vào app, KHÔNG forge được.
+ *  - Chỉ tin các header proxy (CF-Connecting-IP, X-Real-IP, X-Forwarded-For)
+ *    khi socket nằm trong dải loopback/LAN → tức request đến từ reverse proxy
+ *    thật (Nginx/Cloudflare tunnel) chứ không phải client trực tiếp gửi.
+ *  - Nếu app exposed trực tiếp internet và attacker spoof header → ta IGNORE,
+ *    dùng `socket.remoteAddress` làm IP thật.
+ *  - Thứ tự ưu tiên khi đã trust: CF-Connecting-IP (nếu TRUST_CLOUDFLARE) >
+ *    X-Real-IP > req.ip (Express handle XFF theo TRUST_PROXY) > remoteAddress.
+ */
 export function getClientInfo(req: Request): ClientInfo {
-  // X-Forwarded-For có thể là chuỗi nhiều hop: "client, proxy1, proxy2"
   const fwdHeader = req.headers['x-forwarded-for']
   const forwardedChain =
     typeof fwdHeader === 'string' && fwdHeader.length
       ? fwdHeader.split(',').map(s => s.trim()).filter(Boolean)
       : null
 
-  // Express's req.ip dùng trust proxy setting để chọn đúng IP từ chain
   const expressIp     = req.ip
-  // Raw connection — IP của hop cuối (proxy hoặc client trực tiếp)
   const remoteAddress = req.socket?.remoteAddress
+  const remoteNorm    = remoteAddress ? normalizeIp(remoteAddress) : undefined
 
-  // Ưu tiên: forwarded chain[0] (nếu trust proxy) > req.ip > remoteAddress
-  const ipRaw = forwardedChain?.[0] ?? expressIp ?? remoteAddress ?? undefined
-  const ip    = ipRaw ? normalizeIp(ipRaw) : undefined
+  // Request có thực sự đến từ trusted infra không?
+  // (loopback = same-host proxy; LAN = private network proxy)
+  const socketType  = classifyIp(remoteNorm)
+  const fromProxy   = socketType === 'loopback' || socketType === 'lan'
+
+  // Resolve IP theo priority — CHỈ tin header khi fromProxy=true
+  let ipRaw: string | undefined
+  if (fromProxy) {
+    const cf = env.TRUST_CLOUDFLARE ? headerValue(req, 'cf-connecting-ip') : undefined
+    const xr = headerValue(req, 'x-real-ip')
+    ipRaw = cf ?? xr ?? expressIp ?? remoteNorm
+  } else {
+    // App bị gọi trực tiếp — bỏ qua mọi header forwarded, attacker có thể spoof
+    ipRaw = remoteNorm
+  }
+
+  const ip      = ipRaw ? normalizeIp(ipRaw) : undefined
   const ipType  = classifyIp(ip)
   const isLocal = ipType === 'loopback' || ipType === 'lan'
 
@@ -83,7 +115,7 @@ export function getClientInfo(req: Request): ClientInfo {
     isLocal,
     forwardedChain,
     expressIp,
-    remoteAddress: remoteAddress ? normalizeIp(remoteAddress) : undefined,
+    remoteAddress: remoteNorm,
     userAgent,
   }
 }

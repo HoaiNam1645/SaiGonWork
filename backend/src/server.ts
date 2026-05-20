@@ -4,6 +4,7 @@ import { createApp } from './app'
 import { env } from './config/env'
 import { setIo } from './lib/socket'
 import { verifyAccess, verifyGuest, type AccessTokenPayload, type GuestTokenPayload } from './lib/jwt'
+import { isOriginAllowed } from './lib/corsOrigin'
 
 const app = createApp()
 const httpServer = createServer(app)
@@ -20,7 +21,11 @@ interface SocketAuthData {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const io: SocketServer = new SocketServer(httpServer, {
   cors: {
-    origin: env.CORS_ORIGIN.split(',').map(s => s.trim()),
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true)
+      if (isOriginAllowed(origin)) return cb(null, true)
+      cb(new Error(`Socket CORS: origin not allowed: ${origin}`))
+    },
     credentials: true,
   },
 })

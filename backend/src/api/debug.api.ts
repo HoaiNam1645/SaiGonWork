@@ -27,12 +27,14 @@ export function whoami(req: Request, res: Response) {
         'x-forwarded-for':   req.headers['x-forwarded-for']   ?? null,
         'x-forwarded-proto': req.headers['x-forwarded-proto'] ?? null,
         'x-real-ip':         req.headers['x-real-ip']         ?? null,
+        'cf-connecting-ip':  req.headers['cf-connecting-ip']  ?? null,
         host:                req.headers.host                 ?? null,
         origin:              req.headers.origin               ?? null,
         referer:             req.headers.referer              ?? null,
       },
     },
-    trustProxy: req.app.get('trust proxy'),
-    locale:     req.locale,
+    trustProxy:      req.app.get('trust proxy'),
+    trustCloudflare: env.TRUST_CLOUDFLARE,
+    locale:          req.locale,
   })
 }

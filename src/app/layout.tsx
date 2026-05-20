@@ -5,6 +5,7 @@ import { CartProvider } from '@/context/CartContext'
 import { AuthProvider } from '@/context/AuthContext'
 import { I18nProvider } from '@/i18n/I18nContext'
 import { menuCategories, restaurantInfo } from '@/data/menu'
+import { STORE_FALLBACK } from '@/config/store'
 import PromoBanner from '@/components/PromoBanner'
 import CartDrawer from '@/components/CartDrawer'
 
@@ -87,26 +88,26 @@ export const metadata: Metadata = {
 const restaurantJsonLd = {
   '@context': 'https://schema.org',
   '@type': 'Restaurant',
-  name: 'Sai Gon Wok',
+  name: STORE_FALLBACK.name,
   description: restaurantInfo.description,
   address: {
     '@type': 'PostalAddress',
-    streetAddress: 'Kanalstraße 10',
-    addressLocality: 'Stuttgart',
-    postalCode: '70182',
-    addressCountry: 'DE',
+    streetAddress:    STORE_FALLBACK.address.street,
+    addressLocality:  STORE_FALLBACK.address.locality,
+    postalCode:       STORE_FALLBACK.address.postalCode,
+    addressCountry:   STORE_FALLBACK.address.country,
   },
   openingHoursSpecification: [
     {
-      '@type': 'OpeningHoursSpecification',
-      dayOfWeek: ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
-      opens: '11:00',
-      closes: '21:30',
+      '@type':   'OpeningHoursSpecification',
+      dayOfWeek: STORE_FALLBACK.openingHours.days,
+      opens:     STORE_FALLBACK.openingHours.opens,
+      closes:    STORE_FALLBACK.openingHours.close,
     },
   ],
-  servesCuisine: ['Vietnamese', 'Asian'],
-  priceRange: '€€',
-  url: 'https://saigonwok-stuttgart.de',
+  servesCuisine: STORE_FALLBACK.cuisines,
+  priceRange:    STORE_FALLBACK.priceRange,
+  url:           STORE_FALLBACK.url,
   hasMenu: {
     '@type': 'Menu',
     name: 'Sai Gon Wok Speisekarte',

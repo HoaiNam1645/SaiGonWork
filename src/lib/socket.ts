@@ -59,10 +59,18 @@ export interface NotificationPayload {
 // Socket singleton
 // =====================================================================
 
-const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ??
-  process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '') ??
-  'http://localhost:4000'
+const SOCKET_URL = (() => {
+  const direct = process.env.NEXT_PUBLIC_SOCKET_URL
+  if (direct) return direct
+  const derived = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
+  if (derived) return derived
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      '[socket] NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL is required for production build.',
+    )
+  }
+  return 'http://localhost:4000'
+})()
 
 let _socket: Socket | null = null
 
