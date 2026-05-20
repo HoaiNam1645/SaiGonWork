@@ -298,6 +298,10 @@ const de: Dict = {
   'checkout.cta.place_order': 'Bestellung aufgeben',
   'checkout.cta.placing_order': 'Wird gesendet …',
 
+  'checkout.verify_required.title': 'E-Mail-Bestätigung erforderlich',
+  'checkout.verify_required.body':  'Bitte bestätigen Sie zuerst Ihre E-Mail-Adresse {{email}}, bevor Sie bestellen können.',
+  'checkout.verify_required.cta':   'E-Mail jetzt bestätigen',
+
   'checkout.success.title': 'Bestellung erhalten!',
   'checkout.success.body': 'Wir bereiten Ihre Bestellung vor und liefern sie schnellstmöglich.',
   'checkout.success.view_order': 'Bestellung anzeigen',
@@ -1243,6 +1247,9 @@ const en: Dict = {
   'checkout.warning.required_fields': 'Please fill in all required fields.',
 
   'checkout.cta.place_order': 'Place order',
+  'checkout.verify_required.title': 'Email verification required',
+  'checkout.verify_required.body':  'Please verify your email address {{email}} before placing an order.',
+  'checkout.verify_required.cta':   'Verify email now',
   'checkout.cta.placing_order': 'Sending …',
 
   'checkout.success.title': 'Order received!',

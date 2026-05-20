@@ -316,7 +316,15 @@ export default function AdminOrdersPage() {
         paymentMethod: p.paymentMethod,
         bankTxId:      p.bankTxId,
         itemCount:     p.itemCount,
-        items:         [],   // socket payload không có chi tiết — sẽ load khi user refresh
+        items:         p.items.map(i => ({
+          id:           i.id,
+          dishName:     i.dishName,
+          dishImageUrl: i.dishImageUrl,
+          unitPrice:    i.unitPrice,
+          quantity:     i.quantity,
+          lineTotal:    i.lineTotal,
+          options:      null,   // socket payload không gửi options (đỡ payload nặng)
+        })),
         distanceKm:    p.distanceKm,
         createdAt:     p.createdAt,
         isGuest:       p.isGuest,

@@ -406,12 +406,18 @@ export async function create(req: Request, res: Response) {
     }
   }
 
-  // Customer: chặn nếu account bị admin deactivate (is_active=false)
+  // Customer: chặn nếu account bị admin deactivate hoặc chưa verify email
   // — JWT có thể vẫn valid trong 15 phút TTL, lookup DB để chặn ngay.
   if (userId) {
-    const u = await prisma.user.findUnique({ where: { id: userId }, select: { isActive: true } })
+    const u = await prisma.user.findUnique({
+      where:  { id: userId },
+      select: { isActive: true, emailVerifiedAt: true },
+    })
     if (!u || !u.isActive) {
       throw Forbidden('user.account_disabled', 'ACCOUNT_DISABLED')
+    }
+    if (!u.emailVerifiedAt) {
+      throw Forbidden('auth.email_not_verified', 'EMAIL_NOT_VERIFIED')
     }
   }
 
@@ -576,6 +582,14 @@ export async function create(req: Request, res: Response) {
       contactPhone:  order.contactPhone,
       contactEmail:  order.contactEmail,
       itemCount:     order.items.reduce((s, i) => s + i.quantity, 0),
+      items:         order.items.map(i => ({
+        id:           i.id.toString(),
+        dishName:     i.dishName,
+        dishImageUrl: i.dishImageUrl,
+        quantity:     i.quantity,
+        unitPrice:    Number(i.unitPrice),
+        lineTotal:    Number(i.lineTotal),
+      })),
       subtotal:      Number(order.subtotal),
       deliveryFee:   Number(order.deliveryFee),
       distanceKm:    order.distanceKm != null ? Number(order.distanceKm) : null,

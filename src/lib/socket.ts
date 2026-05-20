@@ -7,6 +7,15 @@ import { io as ioClient, type Socket } from 'socket.io-client'
 // Types (mirror BE lib/socket.ts)
 // =====================================================================
 
+export interface OrderCreatedItem {
+  id:           string
+  dishName:     string
+  dishImageUrl: string | null
+  quantity:     number
+  unitPrice:    number
+  lineTotal:    number
+}
+
 export interface OrderCreatedPayload {
   id:               string
   code:             string
@@ -19,6 +28,7 @@ export interface OrderCreatedPayload {
   contactPhone:     string
   contactEmail:     string
   itemCount:        number
+  items:            OrderCreatedItem[]
   subtotal:         number
   deliveryFee:      number
   distanceKm:       number | null

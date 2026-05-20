@@ -253,6 +253,9 @@ export default function CheckoutPage() {
   // bổ sung tọa độ), không bắt buộc destination ở FE — BE sẽ tự geocode từ address_id.
   const locationOk = destination != null || savedAddrId != null
 
+  // Customer login phải verify email mới đặt được đơn (khớp luồng guest).
+  const needEmailVerify = !!user && !user.emailVerifiedAt
+
   const requiredOk =
     name.trim().length > 0 &&
     phone.trim().length > 0 &&
@@ -260,7 +263,8 @@ export default function CheckoutPage() {
     addressText.trim().length > 0 &&
     locationOk &&
     !outOfZone &&
-    items.length > 0
+    items.length > 0 &&
+    !needEmailVerify
 
   // ─── Build payload chung ───
   function buildOrderBody(bankTxIdArg?: string | null) {
@@ -821,6 +825,24 @@ export default function CheckoutPage() {
                   style={{ backgroundColor: '#fef3f2', boxShadow: '0 0 0 1px #f4cdca', color: '#b53333' }}
                 >
                   {submitError}
+                </div>
+              )}
+
+              {needEmailVerify && user && (
+                <div
+                  className="mt-4 rounded-xl px-3.5 py-3 text-[13px]"
+                  style={{ backgroundColor: '#fff7ed', boxShadow: '0 0 0 1px #fed7aa', color: '#9a3412' }}
+                >
+                  <div className="font-medium mb-1">{t('checkout.verify_required.title')}</div>
+                  <div className="text-[12px] leading-relaxed mb-2">
+                    {t('checkout.verify_required.body').replace('{{email}}', user.email)}
+                  </div>
+                  <Link
+                    href={`/auth/verify?email=${encodeURIComponent(user.email)}&purpose=register`}
+                    className="inline-flex items-center gap-1 text-[12px] font-medium text-[#c96442] hover:text-[#d97757] transition-colors"
+                  >
+                    {t('checkout.verify_required.cta')} →
+                  </Link>
                 </div>
               )}
 

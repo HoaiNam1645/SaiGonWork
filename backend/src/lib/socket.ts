@@ -20,6 +20,15 @@ export function getIo(): SocketServer | null {
 // Event payloads (mirror với FE)
 // =====================================================================
 
+export interface OrderCreatedItem {
+  id:           string
+  dishName:     string
+  dishImageUrl: string | null
+  quantity:     number
+  unitPrice:    number
+  lineTotal:    number
+}
+
 export interface OrderCreatedPayload {
   id:               string
   code:             string
@@ -32,6 +41,9 @@ export interface OrderCreatedPayload {
   contactPhone:     string
   contactEmail:     string
   itemCount:        number
+  /** Chi tiết items để admin dashboard render thumbnail + tên ngay khi nhận socket
+   *  (không phải F5 mới thấy). Mỗi item ~100 bytes, đơn 20 món ~2KB — chấp nhận được. */
+  items:            OrderCreatedItem[]
   subtotal:         number
   deliveryFee:      number
   distanceKm:       number | null
