@@ -13,6 +13,7 @@ import { ordersRouter } from './orders'
 import { notificationsRouter } from './notifications'
 import { adminCustomersRouter } from './admin.customers'
 import { adminStaffRouter } from './admin.staff'
+import { adminPromotionsRouter } from './admin.promotions'
 import {
   adminCategoriesRouter,
   adminDishesRouter,
@@ -41,4 +42,5 @@ apiRouter.use('/admin/categories', adminCategoriesRouter)
 apiRouter.use('/admin/dishes',     adminDishesRouter)
 apiRouter.use('/admin/options',    adminOptionsRouter)
 apiRouter.use('/admin/values',     adminValuesRouter)
+apiRouter.use('/admin/promotions', adminPromotionsRouter)
 apiRouter.use('/debug',            debugRouter)

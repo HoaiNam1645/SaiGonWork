@@ -32,10 +32,42 @@ interface ApiOptions extends Omit<RequestInit, 'body'> {
   guestToken?: string
   /** Lookup token (cấp sau khi verify OTP purpose=order_lookup). X-Lookup-Token. */
   lookupToken?: string
+  /** Internal: đã refresh rồi, không lặp lại để tránh loop. */
+  _retried?: boolean
+}
+
+/**
+ * Singleton refresh promise — nhiều request 401 cùng lúc chỉ trigger 1 lần /auth/refresh.
+ * Sau khi refresh xong, tất cả retry đồng thời.
+ */
+let refreshPromise: Promise<boolean> | null = null
+
+/** Path không bao giờ retry/refresh để tránh loop hoặc gọi sai thứ tự. */
+const AUTH_PATHS = new Set(['/auth/refresh', '/auth/login', '/auth/logout', '/auth/register'])
+
+async function tryRefresh(): Promise<boolean> {
+  if (refreshPromise) return refreshPromise
+  refreshPromise = (async () => {
+    try {
+      const res = await fetch(`${API_BASE}/auth/refresh`, {
+        method:      'POST',
+        credentials: 'include',
+        headers:     { 'Content-Type': 'application/json' },
+      })
+      return res.ok
+    } catch {
+      return false
+    } finally {
+      // Reset sau micro-task để các retry trong cùng burst đều share promise này,
+      // nhưng request tiếp theo sẽ tự refresh lại nếu cần.
+      setTimeout(() => { refreshPromise = null }, 0)
+    }
+  })()
+  return refreshPromise
 }
 
 export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Promise<T> {
-  const { body, locale, headers, guestToken, lookupToken, ...rest } = opts
+  const { body, locale, headers, guestToken, lookupToken, _retried, ...rest } = opts
 
   const res = await fetch(`${API_BASE}${path}`, {
     ...rest,
@@ -49,6 +81,16 @@ export async function api<T = unknown>(path: string, opts: ApiOptions = {}): Pro
     },
     body: body !== undefined ? JSON.stringify(body) : undefined,
   })
+
+  // 401 trên endpoint thường (không phải /auth/*) → thử refresh access token rồi retry 1 lần.
+  // Lý do: access cookie 15 phút thường hết trước refresh (7 ngày). Nếu refresh thành công,
+  // request gốc retry với access mới và caller không thấy gì.
+  if (res.status === 401 && !_retried && !AUTH_PATHS.has(path)) {
+    const refreshed = await tryRefresh()
+    if (refreshed) {
+      return api<T>(path, { ...opts, _retried: true })
+    }
+  }
 
   const text = await res.text()
   const data = text ? safeJsonParse(text) : null

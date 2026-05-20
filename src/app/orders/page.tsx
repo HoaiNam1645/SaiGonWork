@@ -3,63 +3,73 @@
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
 import Image from 'next/image'
+import { useRouter } from 'next/navigation'
 import Header from '@/components/Header'
 import Footer from '@/components/Footer'
 import { useI18n } from '@/i18n/I18nContext'
 import type { TKey } from '@/i18n/dictionary'
+import { useAuth } from '@/context/AuthContext'
 import { api, ApiError } from '@/lib/api'
+import {
+  readLookupToken,
+  readLookupEmail,
+  clearLookupSession,
+} from '@/lib/lookupToken'
 
 // =====================================================================
-// API types — khớp với shapeOrder() ở backend
+// Backend types — khớp với shapeOrder() ở BE
 // =====================================================================
 
-type ApiStatus =
-  | 'pending_payment'
-  | 'paid'
-  | 'preparing'
-  | 'delivering'
-  | 'completed'
-  | 'cancelled'
+type BackendStatus =
+  | 'pending_payment' | 'paid' | 'preparing'
+  | 'delivering' | 'completed' | 'cancelled'
 
-interface ApiOrderItem {
+type PaymentMethod = 'cash_on_delivery' | 'paypal' | 'bank_qr_image'
+
+interface BackendOrderItem {
   id:           string
   dishName:     string
   dishImageUrl: string | null
   quantity:     number
+  lineTotal:    number
 }
 
-interface ApiOrder {
+interface BackendOrder {
   id:            string
   code:          string
-  status:        ApiStatus
+  status:        BackendStatus
   total:         number
   currency:      string
-  paymentMethod: 'cash_on_delivery' | 'paypal' | 'bank_qr_image'
+  paymentMethod: PaymentMethod
   createdAt:     string
-  items:         ApiOrderItem[]
+  items:         BackendOrderItem[]
 }
 
-interface ListResponse { orders: ApiOrder[] }
+interface ListResponse { orders: BackendOrder[] }
+
+// =====================================================================
+// Tab → backend status mapping
+// =====================================================================
 
 type TabKey = 'placed' | 'shipping' | 'delivered' | 'cancelled'
 
-const TABS: { key: TabKey; labelKey: TKey; statuses: ApiStatus[] }[] = [
-  { key: 'placed',    labelKey: 'orders.tab.placed',    statuses: ['pending_payment', 'paid'] },
-  { key: 'shipping',  labelKey: 'orders.tab.shipping',  statuses: ['preparing', 'delivering'] },
+const TABS: { key: TabKey; labelKey: TKey; statuses: BackendStatus[] }[] = [
+  { key: 'placed',    labelKey: 'orders.tab.placed',    statuses: ['pending_payment', 'paid', 'preparing'] },
+  { key: 'shipping',  labelKey: 'orders.tab.shipping',  statuses: ['delivering'] },
   { key: 'delivered', labelKey: 'orders.tab.delivered', statuses: ['completed'] },
   { key: 'cancelled', labelKey: 'orders.tab.cancelled', statuses: ['cancelled'] },
 ]
 
-const STATUS_LABEL: Record<ApiStatus, TKey> = {
-  pending_payment: 'admin.status.pending_payment',
-  paid:            'admin.status.paid',
-  preparing:       'admin.status.preparing',
-  delivering:      'admin.status.delivering',
-  completed:       'admin.status.completed',
-  cancelled:       'admin.status.cancelled',
+const STATUS_KEY: Record<BackendStatus, TKey> = {
+  pending_payment: 'status.placed',
+  paid:            'status.placed',
+  preparing:       'status.preparing',
+  delivering:      'status.shipping',
+  completed:       'status.delivered',
+  cancelled:       'status.cancelled',
 }
 
-const PAYMENT_SHORT: Record<ApiOrder['paymentMethod'], string> = {
+const PAYMENT_SHORT: Record<PaymentMethod, string> = {
   cash_on_delivery: 'Cash',
   paypal:           'PayPal',
   bank_qr_image:    'Bank QR',
@@ -71,43 +81,77 @@ const PAYMENT_SHORT: Record<ApiOrder['paymentMethod'], string> = {
 
 export default function OrdersPage() {
   const { t, formatDate, locale } = useI18n()
-  const [active, setActive]   = useState<TabKey>('placed')
-  const [orders, setOrders]   = useState<ApiOrder[] | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError]     = useState<string | null>(null)
+  const { user } = useAuth()
+  const router = useRouter()
 
+  const [active, setActive] = useState<TabKey>('placed')
+  const [orders, setOrders] = useState<BackendOrder[] | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+
+  // Load orders: customer → /orders, guest có lookup token → /orders/lookup,
+  // không có gì → đẩy sang /orders/lookup để guest verify OTP.
   useEffect(() => {
-    let alive = true
-    void (async () => {
-      setLoading(true); setError(null)
+    let cancelled = false
+
+    async function load() {
+      setLoading(true)
+      setError(null)
       try {
-        const res = await api<ListResponse>('/orders', { locale })
-        if (!alive) return
-        setOrders(res.orders)
+        if (user) {
+          const res = await api<ListResponse>('/orders', { locale })
+          if (!cancelled) setOrders(res.orders)
+          return
+        }
+
+        const lookupTok = readLookupToken()
+        if (lookupTok) {
+          try {
+            const res = await api<ListResponse>('/orders/lookup', {
+              lookupToken: lookupTok,
+              locale,
+            })
+            if (!cancelled) setOrders(res.orders)
+            return
+          } catch (e) {
+            if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
+              clearLookupSession()
+              router.replace('/orders/lookup')
+              return
+            }
+            throw e
+          }
+        }
+
+        // Chưa login + chưa có lookup session → bắt verify OTP
+        router.replace('/orders/lookup')
       } catch (e) {
-        if (!alive) return
-        setError(e instanceof ApiError ? e.message : 'Failed to load orders')
+        if (!cancelled) {
+          setError(e instanceof ApiError ? e.message : t('checkout.error.generic'))
+        }
       } finally {
-        if (alive) setLoading(false)
+        if (!cancelled) setLoading(false)
       }
-    })()
-    return () => { alive = false }
-  }, [locale])
+    }
+
+    void load()
+    return () => { cancelled = true }
+  }, [user, locale, router, t])
 
   const counts = useMemo(() => {
     const c: Record<TabKey, number> = { placed: 0, shipping: 0, delivered: 0, cancelled: 0 }
     if (!orders) return c
     for (const tab of TABS) {
-      c[tab.key] = orders.filter(o => tab.statuses.includes(o.status)).length
+      c[tab.key] = orders.filter((o) => tab.statuses.includes(o.status)).length
     }
     return c
   }, [orders])
 
-  const visible: ApiOrder[] = useMemo(() => {
+  const visible: BackendOrder[] = useMemo(() => {
     if (!orders) return []
-    const tab = TABS.find(t => t.key === active)!
-    return orders.filter(o => tab.statuses.includes(o.status))
-  }, [orders, active])
+    const tab = TABS.find((t) => t.key === active)!
+    return orders.filter((o) => tab.statuses.includes(o.status))
+  }, [active, orders])
 
   const fmtPrice = useMemo(
     () => new Intl.NumberFormat(locale === 'de' ? 'de-DE' : 'en-US', {
@@ -115,6 +159,8 @@ export default function OrdersPage() {
     }),
     [locale],
   )
+
+  const lookupEmail = !user ? readLookupEmail() : null
 
   return (
     <>
@@ -141,7 +187,35 @@ export default function OrdersPage() {
             >
               {t('orders.subtitle')}
             </p>
+
+            {/* Guest lookup banner — cho phép sign out để dùng email khác */}
+            {!user && lookupEmail && (
+              <div className="mt-5 flex items-center justify-between gap-3 text-[13px] text-[#5e5d59]">
+                <span className="truncate">
+                  {t('lookup.signed_in_as').replace('{{email}}', lookupEmail)}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    clearLookupSession()
+                    router.replace('/orders/lookup')
+                  }}
+                  className="text-[#c96442] hover:text-[#d97757] transition-colors shrink-0"
+                >
+                  {t('lookup.use_different_email')}
+                </button>
+              </div>
+            )}
           </div>
+
+          {error && (
+            <div
+              className="mb-6 rounded-xl px-3.5 py-2.5 text-[13px]"
+              style={{ backgroundColor: '#fef3f2', boxShadow: '0 0 0 1px #f4cdca', color: '#b53333' }}
+            >
+              {error}
+            </div>
+          )}
 
           {/* Tabs */}
           <div className="mb-8">
@@ -180,9 +254,12 @@ export default function OrdersPage() {
           {/* List */}
           <div className="space-y-3">
             {loading ? (
-              <div className="text-center text-[#87867f] text-sm py-20">…</div>
-            ) : error ? (
-              <div className="text-center text-[#b53333] text-sm py-20">{error}</div>
+              <div
+                className="rounded-2xl bg-[#faf9f5] py-20 text-center text-[#87867f] text-[14px]"
+                style={{ boxShadow: '0 0 0 1px #f0eee6' }}
+              >
+                {t('order_detail.loading')}
+              </div>
             ) : visible.length === 0 ? (
               <div
                 className="rounded-2xl bg-[#faf9f5] py-20 text-center"
@@ -227,7 +304,7 @@ export default function OrdersPage() {
                               : 'bg-[#c96442]'
                           }`}
                         />
-                        {t(STATUS_LABEL[order.status])}
+                        {t(STATUS_KEY[order.status])}
                       </span>
                     </div>
 
@@ -256,7 +333,7 @@ export default function OrdersPage() {
                         )}
                       </div>
                       <div className="text-[14px] text-[#5e5d59] ml-1.5 line-clamp-1 flex-1 min-w-0">
-                        {order.items.map(i => i.dishName).join(' · ')}
+                        {order.items.map((i) => i.dishName).join(' · ')}
                       </div>
                     </div>
 

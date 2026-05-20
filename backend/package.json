@@ -7,7 +7,7 @@
   "scripts": {
     "dev":               "nodemon",
     "dev:tsx":           "tsx watch src/server.ts",
-    "build":             "tsc",
+    "build":             "tsc && tsc-alias",
     "start":             "node dist/server.js",
 
     "migrate":           "prisma migrate dev",
@@ -54,6 +54,7 @@
     "@types/nodemailer":       "^8.0.0",
     "nodemon":                 "^3.1.14",
     "prisma":                  "5.22.0",
+    "tsc-alias":               "^1.8.10",
     "tsx":                     "^4.19.2",
     "typescript":              "^5.6.3"
   }
