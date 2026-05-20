@@ -62,10 +62,12 @@ const de: Dict = {
 
   // Promotion
   'promo.not_found': 'Aktionscode nicht gefunden.',
-  'promo.expired': 'Aktionscode ist abgelaufen.',
+  'promo.expired': 'Aktionscode ist ungültig oder abgelaufen.',
   'promo.min_order': 'Mindestbestellwert {{amount}} € für diesen Code erforderlich.',
   'promo.usage_limit': 'Aktionscode wurde bereits zu oft verwendet.',
   'promo.per_user_limit': 'Sie haben diesen Code bereits verwendet.',
+  'promo.code_taken': 'Dieser Code ist bereits vergeben.',
+  'promo.cannot_delete_used': 'Code wurde bereits verwendet — bitte deaktivieren statt löschen.',
 
   // Status names (cho email/notif/socket)
   'status.pending_payment': 'Zahlung ausstehend',
@@ -194,10 +196,12 @@ const en: Dict = {
 
   // Promotion
   'promo.not_found': 'Promotion code not found.',
-  'promo.expired': 'Promotion code has expired.',
+  'promo.expired': 'Promotion code is invalid or has expired.',
   'promo.min_order': 'Minimum order €{{amount}} required for this code.',
   'promo.usage_limit': 'Promotion code has already been used too many times.',
   'promo.per_user_limit': 'You have already used this code.',
+  'promo.code_taken': 'This code is already taken.',
+  'promo.cannot_delete_used': 'Code has already been used — deactivate instead of deleting.',
 
   // Status names
   'status.pending_payment': 'Pending payment',

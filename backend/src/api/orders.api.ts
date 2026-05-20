@@ -7,6 +7,7 @@ import { signGuestToken } from '@/lib/jwt'
 import { routeDriving } from '@/lib/osrm'
 import { geocodeAddress } from '@/lib/geocode'
 import { computeDeliveryFee, computeSubtotal, dec, round2 } from '@/lib/pricing'
+import { applyPromotion, incrementUsage } from '@/lib/promotion'
 import { emitOrderCreated, emitOrderStatusChanged } from '@/lib/socket'
 import { createNotification } from '@/lib/notifications'
 import { sendMail } from '@/lib/mailer'
@@ -68,6 +69,7 @@ const createOrderSchema = z.object({
   bank_tx_id:     z.string().trim().min(1).max(100).optional(),
   customer_note:  z.string().max(500).optional(),
   scheduled_at:   z.string().datetime().optional(),
+  promotion_code: z.string().trim().min(2).max(50).optional(),
 })
 
 // =====================================================================
@@ -275,6 +277,8 @@ interface OrderRow {
   estimatedReadyAt:       Date | null
   createdAt:              Date
   updatedAt:              Date
+  promotionId?:           bigint | null
+  promotionCodeSnapshot?: string | null
 }
 
 function shapeOrder(o: OrderRow, items?: Array<{
@@ -306,6 +310,7 @@ function shapeOrder(o: OrderRow, items?: Array<{
     estimatedReadyAt:     o.estimatedReadyAt,
     createdAt:            o.createdAt,
     updatedAt:            o.updatedAt,
+    promotionCode:        o.promotionCodeSnapshot ?? null,
     items: items?.map(i => ({
       id:           i.id.toString(),
       dishId:       i.dishId.toString(),
@@ -447,8 +452,20 @@ export async function create(req: Request, res: Response) {
     })
   }
 
-  const discount = 0
-  const total    = round2(subtotal + ship.fee - discount)
+  // Promotion: nếu khách nhập code → validate + tính discount/shipping
+  let promo: Awaited<ReturnType<typeof applyPromotion>> | null = null
+  if (body.promotion_code) {
+    promo = await applyPromotion({
+      code:        body.promotion_code,
+      userId,
+      subtotal,
+      deliveryFee: ship.fee,
+    })
+  }
+
+  const discount    = promo?.discount ?? 0
+  const finalShip   = promo?.shippingAfter ?? ship.fee
+  const total       = round2(subtotal + finalShip - discount)
 
   // 6) Tính ETA: scheduled hoặc now + prep + duration
   let estimatedReadyAt: Date
@@ -508,7 +525,7 @@ export async function create(req: Request, res: Response) {
         addressSnapshotJson,
         priced,
         subtotal,
-        deliveryFee: ship.fee,
+        deliveryFee: finalShip,
         distanceKm:  route.distanceKm,
         durationMinutes: Math.round(route.durationMinutes),
         breakdown,
@@ -517,6 +534,7 @@ export async function create(req: Request, res: Response) {
         estimatedReadyAt,
         scheduledAt: body.scheduled_at ? new Date(body.scheduled_at) : null,
         locale: req.locale as Locale,
+        promotion:   promo,
       })
       break
     } catch (e) {
@@ -637,6 +655,7 @@ async function createOrderTx(input: {
   estimatedReadyAt: Date
   scheduledAt: Date | null
   locale: Locale
+  promotion: Awaited<ReturnType<typeof applyPromotion>> | null
 }) {
   return prisma.$transaction(async tx => {
     const o = await tx.order.create({
@@ -663,8 +682,14 @@ async function createOrderTx(input: {
         estimatedReadyAt:      input.estimatedReadyAt,
         scheduledAt:           input.scheduledAt,
         locale:                input.locale,
+        promotionId:           input.promotion?.promotionId ?? null,
+        promotionCodeSnapshot: input.promotion?.code ?? null,
       },
     })
+
+    if (input.promotion) {
+      await incrementUsage(tx, input.promotion.promotionId)
+    }
 
     await tx.orderItem.createMany({
       data: input.priced.map(p => ({
@@ -748,6 +773,39 @@ export async function getByCode(req: Request, res: Response) {
 const lookupCheckSchema = z.object({
   email: z.string().email().toLowerCase(),
 })
+
+/**
+ * POST /api/orders/promo/preview — preview discount cho UI checkout.
+ * Cho phép cả guest (không cần auth) — chỉ trả discount text/value, không mutate DB.
+ *
+ * Lưu ý: per_user_limit không check được nếu guest. Lúc submit order BE sẽ check lại.
+ */
+const promoPreviewSchema = z.object({
+  code:        z.string().trim().min(2).max(50),
+  subtotal:    z.number().min(0),
+  deliveryFee: z.number().min(0).default(0),
+})
+
+export async function previewPromotion(req: Request, res: Response) {
+  const body   = promoPreviewSchema.parse(req.body)
+  const userId = req.user ? BigInt(req.user.sub) : null
+
+  const result = await applyPromotion({
+    code:        body.code,
+    userId,
+    subtotal:    body.subtotal,
+    deliveryFee: body.deliveryFee,
+  })
+
+  res.json({
+    promotion: {
+      code:          result.code,
+      type:          result.type,
+      discount:      result.discount,
+      shippingAfter: result.shippingAfter,
+    },
+  })
+}
 
 export async function lookupCheck(req: Request, res: Response) {
   const { email } = lookupCheckSchema.parse(req.body)

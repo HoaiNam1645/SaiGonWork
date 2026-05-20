@@ -11,6 +11,7 @@ import AddressAutocomplete from '@/components/AddressAutocomplete'
 import SavedAddressPicker, { type SavedAddress } from '@/components/SavedAddressPicker'
 import GuestOtpModal from '@/components/GuestOtpModal'
 import BankTransferModal from '@/components/BankTransferModal'
+import PromoCodeInput, { type AppliedPromo } from '@/components/PromoCodeInput'
 import { useCart } from '@/context/CartContext'
 import { useAuth } from '@/context/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
@@ -77,6 +78,9 @@ export default function CheckoutPage() {
   const payment: PaymentMethod = 'bank'  // MVP: locked
   const [note, setNote] = useState('')
 
+  // Promotion state — preview, BE recompute lúc submit
+  const [appliedPromo, setAppliedPromo] = useState<AppliedPromo | null>(null)
+
   // Location state
   const [locating, setLocating] = useState(false)
   const [locationError, setLocationError] = useState<string | null>(null)
@@ -132,7 +136,9 @@ export default function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [km, subtotal, shippingConfig?.perKm, shippingConfig?.freeShipThreshold, shippingConfig?.baseFee],
   )
-  const total = subtotal + (shipping ?? 0)
+  const effectiveShipping = appliedPromo?.shippingAfter ?? shipping
+  const discountAmount    = appliedPromo?.discount ?? 0
+  const total = subtotal + (effectiveShipping ?? 0) - discountAmount
   const outOfZone =
     km != null && maxRadiusKm != null && km > maxRadiusKm
   const freeShippingDelta    = freeThreshold != null ? freeThreshold - subtotal : 0
@@ -290,6 +296,7 @@ export default function CheckoutPage() {
       payment_method: PAYMENT_API_MAP[payment],
       bank_tx_id:     (bankTxIdArg ?? bankTxId ?? undefined) || undefined,
       customer_note:  note.trim() || undefined,
+      promotion_code: appliedPromo?.code,
     }
   }
 
@@ -303,6 +310,13 @@ export default function CheckoutPage() {
       case 'ROUTING_FAILED':    return t('checkout.error.routing_failed')
       case 'GEOCODE_FAILED':    return t('checkout.error.routing_failed')
       case 'DISH_UNAVAILABLE':  return t('checkout.error.dish_unavailable')
+      case 'PROMO_EXPIRED':
+      case 'PROMO_USAGE_LIMIT':
+      case 'PROMO_PER_USER_LIMIT':
+      case 'PROMO_MIN_ORDER':
+        // BE đã trả message i18n — và nếu code không hợp lệ nữa thì clear preview
+        setAppliedPromo(null)
+        return e.message || t('checkout.error.generic')
       default:                  return e.message || t('checkout.error.generic')
     }
   }
@@ -736,14 +750,21 @@ export default function CheckoutPage() {
                   <Row
                     label={t('checkout.summary.shipping')}
                     value={
-                      shipping == null
+                      effectiveShipping == null
                         ? t('checkout.summary.shipping_pending')
-                        : shipping === 0
+                        : effectiveShipping === 0
                         ? t('checkout.summary.shipping_free')
-                        : formatEuro(shipping)
+                        : formatEuro(effectiveShipping)
                     }
-                    accent={shipping === 0}
+                    accent={effectiveShipping === 0}
                   />
+                  {discountAmount > 0 && (
+                    <Row
+                      label={`${t('checkout.summary.discount')}${appliedPromo ? ` (${appliedPromo.code})` : ''}`}
+                      value={`-${formatEuro(discountAmount)}`}
+                      accent
+                    />
+                  )}
                   {/* Formula transparency (E): khách nhìn rõ vì sao có phí này */}
                   {shipping != null && km != null && shippingConfig && (
                     <div className="text-[11px] text-[#87867f]" style={{ lineHeight: 1.5 }}>
@@ -773,6 +794,16 @@ export default function CheckoutPage() {
                         )}
                   </div>
                 </div>
+              </div>
+
+              <div className="pt-4 mt-4 border-t border-[#f0eee6]">
+                <PromoCodeInput
+                  subtotal={subtotal}
+                  deliveryFee={shipping ?? 0}
+                  applied={appliedPromo}
+                  onApply={setAppliedPromo}
+                  onClear={() => setAppliedPromo(null)}
+                />
               </div>
 
               <div className="pt-4 mt-4 flex items-baseline justify-between border-t border-[#f0eee6]">

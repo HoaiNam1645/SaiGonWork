@@ -48,6 +48,13 @@ ordersRouter.post(
   ah(ordersApi.lookupCheck),
 )
 
+// POST /api/orders/promo/preview — preview discount cho checkout (guest hoặc customer)
+ordersRouter.post(
+  '/promo/preview',
+  attachUserIfPresent,
+  ah(ordersApi.previewPromotion),
+)
+
 // GET /api/orders/lookup — guest list orders theo email (cần X-Lookup-Token).
 // Khai báo TRƯỚC /:code.
 ordersRouter.get(

@@ -60,28 +60,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   const refresh = useCallback(async () => {
-    // Thử /me. Nếu 401, thử refresh token rồi /me lại — robust với access token expired.
+    // api() tự refresh access token nếu 401 → chỉ cần gọi /auth/me 1 lần.
+    // Nếu vẫn 401 sau auto-refresh → refresh_token cũng hết → clear user state.
     try {
       const res = await api<{ user: AuthUser }>('/auth/me')
       setUser(res.user)
-      return
     } catch (e) {
-      if (!(e instanceof ApiError) || e.status !== 401) {
-        // Network/server lỗi khác — giữ snapshot, không clear
-        return
-      }
-    }
-    // 401 lần 1 → token có thể chỉ access hết hạn → thử refresh
-    try {
-      await api('/auth/refresh', { method: 'POST' })
-      const res = await api<{ user: AuthUser }>('/auth/me')
-      setUser(res.user)
-    } catch (e) {
-      // Refresh cũng fail (refresh_token hết hạn / cookie bị clear) → thực sự logout
       if (e instanceof ApiError && e.status === 401) {
         setUser(null)
       }
-      // network error → giữ user state
+      // Lỗi network/khác — giữ snapshot
     }
   }, [setUser])
 
