@@ -35,8 +35,10 @@ interface LookupOrder {
 
 interface OtpSendResponse  { ok: boolean; cooldownSeconds: number; expiresAt: string }
 interface OtpVerifyResponse { ok: boolean; lookupToken: string }
-interface ListResponse      { orders: LookupOrder[] }
+interface ListResponse      { orders: LookupOrder[]; total: number; limit: number; offset: number }
 interface CheckResponse     { hasOrders: boolean }
+
+const PAGE_SIZE = 3
 
 // =====================================================================
 // Page
@@ -55,6 +57,8 @@ export default function OrderLookupPage() {
   const [loading,   setLoading]   = useState(false)
   const [cooldown,  setCooldown]  = useState(0)
   const [orders,    setOrders]    = useState<LookupOrder[] | null>(null)
+  const [total,     setTotal]     = useState(0)
+  const [offset,    setOffset]    = useState(0)
 
   // Restore session on mount
   useEffect(() => {
@@ -63,10 +67,19 @@ export default function OrderLookupPage() {
     if (tok && em) {
       setEmail(em)
       setStage('list')
-      void fetchOrders(tok)
+      void fetchOrders(tok, 0)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Refetch khi đổi trang
+  useEffect(() => {
+    if (stage !== 'list') return
+    const tok = readLookupToken()
+    if (!tok) return
+    void fetchOrders(tok, offset)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [offset])
 
   // Cooldown ticker
   useEffect(() => {
@@ -120,7 +133,8 @@ export default function OrderLookupPage() {
       })
       saveLookupSession(email.trim().toLowerCase(), res.lookupToken)
       setStage('list')
-      await fetchOrders(res.lookupToken)
+      setOffset(0)
+      await fetchOrders(res.lookupToken, 0)
     } catch (e) {
       if (e instanceof ApiError) {
         if (e.code === 'OTP_EXPIRED')      setError(t('checkout.otp.error_expired'))
@@ -134,11 +148,13 @@ export default function OrderLookupPage() {
     }
   }
 
-  async function fetchOrders(token: string) {
+  async function fetchOrders(token: string, off: number) {
     setLoading(true); setError(null)
     try {
-      const res = await api<ListResponse>('/orders/lookup', { lookupToken: token, locale })
+      const qs  = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(off) })
+      const res = await api<ListResponse>(`/orders/lookup?${qs.toString()}`, { lookupToken: token, locale })
       setOrders(res.orders)
+      setTotal(res.total)
     } catch (e) {
       // Token hết hạn → buộc verify lại
       if (e instanceof ApiError && (e.status === 401 || e.status === 403)) {
@@ -340,11 +356,23 @@ export default function OrderLookupPage() {
                   </Link>
                 </div>
               ) : (
-                <ul className="space-y-3">
-                  {orders.map(o => (
-                    <OrderRow key={o.id} order={o} locale={locale} t={t} />
-                  ))}
-                </ul>
+                <>
+                  <ul className="space-y-3">
+                    {orders.map(o => (
+                      <OrderRow key={o.id} order={o} locale={locale} t={t} />
+                    ))}
+                  </ul>
+                  {total > PAGE_SIZE && (
+                    <Pagination
+                      offset={offset}
+                      total={total}
+                      pageSize={PAGE_SIZE}
+                      onChange={setOffset}
+                      disabled={loading}
+                      t={t}
+                    />
+                  )}
+                </>
               )}
             </div>
           )}
@@ -429,4 +457,48 @@ function formatEuro(n: number, locale: string): string {
   return new Intl.NumberFormat(locale === 'de' ? 'de-DE' : 'en-US', {
     style: 'currency', currency: 'EUR',
   }).format(n)
+}
+
+function Pagination({
+  offset, total, pageSize, onChange, disabled, t,
+}: {
+  offset:    number
+  total:     number
+  pageSize:  number
+  onChange:  (o: number) => void
+  disabled?: boolean
+  t:         (k: string) => string
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize))
+  const current    = Math.floor(offset / pageSize) + 1
+  const canPrev    = offset > 0 && !disabled
+  const canNext    = offset + pageSize < total && !disabled
+
+  return (
+    <div className="mt-6 flex items-center justify-between gap-3 text-[13px]">
+      <span className="text-[#87867f] tabular-nums">
+        {t('lookup.page_info')
+          .replace('{{current}}', String(current))
+          .replace('{{total}}',   String(totalPages))}
+      </span>
+      <div className="inline-flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(Math.max(0, offset - pageSize))}
+          disabled={!canPrev}
+          className="px-3 py-1.5 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] hover:bg-[#f0eee6] text-[#4d4c48] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          ← {t('lookup.prev')}
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(offset + pageSize)}
+          disabled={!canNext}
+          className="px-3 py-1.5 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] hover:bg-[#f0eee6] text-[#4d4c48] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {t('lookup.next')} →
+        </button>
+      </div>
+    </div>
+  )
 }

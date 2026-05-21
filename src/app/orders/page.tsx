@@ -47,6 +47,8 @@ interface BackendOrder {
 
 interface ListResponse { orders: BackendOrder[] }
 
+const PAGE_SIZE = 3
+
 // =====================================================================
 // Tab → backend status mapping
 // =====================================================================
@@ -88,6 +90,10 @@ export default function OrdersPage() {
   const [orders, setOrders] = useState<BackendOrder[] | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const [page, setPage] = useState(1)
+
+  // Đổi tab → reset về trang 1 (tránh trường hợp tab mới có ít đơn hơn page cũ)
+  useEffect(() => { setPage(1) }, [active])
 
   // Load orders: customer → /orders, guest có lookup token → /orders/lookup,
   // không có gì → đẩy sang /orders/lookup để guest verify OTP.
@@ -147,11 +153,18 @@ export default function OrdersPage() {
     return c
   }, [orders])
 
-  const visible: BackendOrder[] = useMemo(() => {
+  const filtered: BackendOrder[] = useMemo(() => {
     if (!orders) return []
     const tab = TABS.find((t) => t.key === active)!
     return orders.filter((o) => tab.statuses.includes(o.status))
   }, [active, orders])
+
+  const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE))
+  const safePage   = Math.min(page, totalPages)
+  const visible    = useMemo(
+    () => filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE),
+    [filtered, safePage],
+  )
 
   const fmtPrice = useMemo(
     () => new Intl.NumberFormat(locale === 'de' ? 'de-DE' : 'en-US', {
@@ -176,14 +189,14 @@ export default function OrdersPage() {
               {t('orders.eyebrow')}
             </div>
             <h1
-              className="font-display text-[#141413] text-[40px] sm:text-[52px] font-medium"
-              style={{ lineHeight: 1.1 }}
+              className="font-display text-[#141413] text-[26px] sm:text-[32px] font-medium"
+              style={{ lineHeight: 1.15 }}
             >
               {t('orders.title')}
             </h1>
             <p
-              className="text-[#5e5d59] text-[17px] mt-3 max-w-xl"
-              style={{ lineHeight: 1.6 }}
+              className="text-[#5e5d59] text-[14px] mt-2 max-w-xl"
+              style={{ lineHeight: 1.55 }}
             >
               {t('orders.subtitle')}
             </p>
@@ -358,9 +371,58 @@ export default function OrdersPage() {
               })
             )}
           </div>
+
+          {filtered.length > PAGE_SIZE && (
+            <OrdersPagination
+              page={safePage}
+              totalPages={totalPages}
+              onChange={setPage}
+              t={t}
+            />
+          )}
         </div>
       </main>
       <Footer />
     </>
+  )
+}
+
+function OrdersPagination({
+  page, totalPages, onChange, t,
+}: {
+  page:       number
+  totalPages: number
+  onChange:   (p: number) => void
+  t:          (k: TKey) => string
+}) {
+  const canPrev = page > 1
+  const canNext = page < totalPages
+
+  return (
+    <div className="mt-6 flex items-center justify-between gap-3 text-[13px]">
+      <span className="text-[#87867f] tabular-nums">
+        {t('lookup.page_info')
+          .replace('{{current}}', String(page))
+          .replace('{{total}}',   String(totalPages))}
+      </span>
+      <div className="inline-flex items-center gap-1">
+        <button
+          type="button"
+          onClick={() => onChange(page - 1)}
+          disabled={!canPrev}
+          className="px-3 py-1.5 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] hover:bg-[#f0eee6] text-[#4d4c48] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          ← {t('lookup.prev')}
+        </button>
+        <button
+          type="button"
+          onClick={() => onChange(page + 1)}
+          disabled={!canNext}
+          className="px-3 py-1.5 rounded-lg border border-[#e8e6dc] bg-[#faf9f5] hover:bg-[#f0eee6] text-[#4d4c48] disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+        >
+          {t('lookup.next')} →
+        </button>
+      </div>
+    </div>
   )
 }

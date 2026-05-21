@@ -378,6 +378,9 @@ const de: Dict = {
   'lookup.go_menu':               'Zur Speisekarte',
   'lookup.view_detail':           'Details ansehen',
   'lookup.error.session_expired': 'Ihre Sitzung ist abgelaufen. Bitte verifizieren Sie sich erneut.',
+  'lookup.prev':                  'Zurück',
+  'lookup.next':                  'Weiter',
+  'lookup.page_info':             'Seite {{current}} / {{total}}',
 
   // =================== ACCOUNT / PROFILE ===================
   'account.eyebrow':                 'Konto',
@@ -1375,6 +1378,9 @@ const en: Dict = {
   'lookup.go_menu':               'Browse menu',
   'lookup.view_detail':           'View details',
   'lookup.error.session_expired': 'Your session has expired. Please verify again.',
+  'lookup.prev':                  'Previous',
+  'lookup.next':                  'Next',
+  'lookup.page_info':             'Page {{current}} / {{total}}',
 
   // =================== ACCOUNT / PROFILE ===================
   'account.eyebrow':                 'Account',

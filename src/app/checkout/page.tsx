@@ -17,6 +17,7 @@ import { useAuth } from '@/context/AuthContext'
 import { useI18n } from '@/i18n/I18nContext'
 import { api, ApiError } from '@/lib/api'
 import { saveOrderToken } from '@/lib/guestToken'
+import { saveLookupSession } from '@/lib/lookupToken'
 import { useStoreSettings } from '@/lib/storeApi'
 import {
   computeShipping,
@@ -54,7 +55,8 @@ const PAYMENT_API_MAP: Record<PaymentMethod, ApiPaymentMethod> = {
 interface CreateOrderResponse {
   order: { code: string }
   paymentInstructions: unknown
-  guestToken?: string
+  guestToken?:  string
+  lookupToken?: string
 }
 
 export default function CheckoutPage() {
@@ -359,9 +361,15 @@ export default function CheckoutPage() {
       setShowBank(false)
       // Guest: lưu permanent token để tra cứu sau
       if (res.guestToken) saveOrderToken(res.order.code, res.guestToken)
+      // Guest vừa verify OTP → BE cấp luôn lookupToken (TTL 7 ngày). Lưu lại để khách
+      // vào /orders/lookup mà không phải verify OTP lần nữa.
+      if (res.lookupToken) {
+        saveLookupSession(body.contact_email, res.lookupToken)
+      }
       await clearCart()
       setShowOtp(false)
-      router.push(`/orders/${res.order.code}?token=${encodeURIComponent(res.guestToken ?? '')}`)
+      // Redirect về /orders/lookup để khách thấy danh sách đơn + biết feature tra cứu
+      router.push('/orders/lookup')
     } catch (e) {
       setSubmitError(mapErrorToMessage(e))
       setShowOtp(false)

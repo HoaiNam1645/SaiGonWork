@@ -3,7 +3,7 @@ import { z } from 'zod'
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { BadRequest, Forbidden, NotFound } from '@/lib/errors'
-import { signGuestToken } from '@/lib/jwt'
+import { signGuestToken, signLookupToken } from '@/lib/jwt'
 import { routeDriving } from '@/lib/osrm'
 import { geocodeAddress } from '@/lib/geocode'
 import { computeDeliveryFee, computeSubtotal, dec, round2 } from '@/lib/pricing'
@@ -559,11 +559,18 @@ export async function create(req: Request, res: Response) {
   )
 
   // 9) Guest token vĩnh viễn (TTL 30 ngày) cho tra cứu đơn sau này
-  let guestToken: string | undefined
+  // + lookup token (TTL 7 ngày) để guest xem được TẤT CẢ đơn theo email này
+  //   mà KHÔNG cần verify OTP lại — họ vừa verify cách đây mấy giây.
+  let guestToken:  string | undefined
+  let lookupToken: string | undefined
   if (!userId) {
     guestToken = signGuestToken(
       { orderCode: order.code, email: body.contact_email, type: 'guest_order' },
       '30d',
+    )
+    lookupToken = signLookupToken(
+      { email: body.contact_email, type: 'guest_lookup' },
+      '7d',
     )
   }
 
@@ -649,6 +656,7 @@ export async function create(req: Request, res: Response) {
     order: shapeOrder(order, order.items),
     paymentInstructions,
     guestToken,
+    lookupToken,
   })
 }
 
@@ -837,15 +845,32 @@ export async function lookupCheck(req: Request, res: Response) {
  * Bảo mật: chỉ trả những đơn `contactEmail = email trong token`. Không enumerate
  * theo SĐT/tên vì sẽ thành kênh dò địa chỉ người khác.
  */
+const lookupListQuery = z.object({
+  limit:  z.coerce.number().int().min(1).max(50).default(3),
+  offset: z.coerce.number().int().min(0).default(0),
+})
+
 export async function listByLookup(req: Request, res: Response) {
   const email = req.guestLookup!.email
-  const orders = await prisma.order.findMany({
-    where:   { contactEmail: email },
-    orderBy: { createdAt: 'desc' },
-    take:    50,
-    include: { items: { orderBy: { id: 'asc' } } },
+  const q = lookupListQuery.parse(req.query)
+
+  const [orders, total] = await Promise.all([
+    prisma.order.findMany({
+      where:   { contactEmail: email },
+      orderBy: { createdAt: 'desc' },
+      take:    q.limit,
+      skip:    q.offset,
+      include: { items: { orderBy: { id: 'asc' } } },
+    }),
+    prisma.order.count({ where: { contactEmail: email } }),
+  ])
+
+  res.json({
+    orders: orders.map(o => shapeOrder(o, o.items)),
+    total,
+    limit:  q.limit,
+    offset: q.offset,
   })
-  res.json({ orders: orders.map(o => shapeOrder(o, o.items)) })
 }
 
 export async function listMine(req: Request, res: Response) {

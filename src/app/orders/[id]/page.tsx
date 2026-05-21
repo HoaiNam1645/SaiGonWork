@@ -10,6 +10,7 @@ import { useI18n } from '@/i18n/I18nContext'
 import { api, ApiError } from '@/lib/api'
 import { readOrderToken, saveOrderToken } from '@/lib/guestToken'
 import { readLookupToken } from '@/lib/lookupToken'
+import { useAuth } from '@/context/AuthContext'
 
 // =====================================================================
 // API types
@@ -125,6 +126,7 @@ const STATUS_DOT: Record<OrderResp['status'], string> = {
 const formatPrice = (n: number) => `${n.toFixed(2).replace('.', ',')} €`
 
 export default function OrderDetailPage() {
+  const { user }     = useAuth()
   const params       = useParams<{ id: string }>()
   const searchParams = useSearchParams()
   const { t, locale, formatDate } = useI18n()
@@ -220,7 +222,7 @@ export default function OrderDetailPage() {
       <main className="menu-page-bg min-h-screen pt-32 pb-24">
         <div className="max-w-3xl mx-auto px-5 sm:px-6">
           <Link
-            href="/orders"
+            href={user ? '/orders' : '/orders/lookup'}
             className="inline-flex items-center gap-1.5 text-[14px] text-[#5e5d59] hover:text-[#141413] mb-6 transition-colors"
           >
             ← {t('order.back')}

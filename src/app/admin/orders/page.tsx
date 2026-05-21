@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import Image from 'next/image'
 import { useRouter } from 'next/navigation'
 import AdminPageHeader from '@/components/admin/AdminPageHeader'
@@ -267,23 +267,35 @@ export default function AdminOrdersPage() {
     return () => window.clearInterval(id)
   }, [])
 
-  // ─── Fetch order alerts mỗi lần vào page ───
-  useEffect(() => {
-    let alive = true
-    ;(async () => {
-      try {
-        const res = await api<AlertsResponse>('/orders/admin/overdue')
-        if (!alive) return
-        if (res.alerts.length > 0) {
-          setAlerts(res.alerts)
-          setShowAlerts(true)
-        }
-      } catch {
-        /* swallow — cảnh báo nice-to-have, không chặn page */
+  // ─── Order alerts: fetch realtime, không cần F5 ───
+  //  - Mount: fetch + auto-open modal nếu có alert
+  //  - Polling 60s: catch case đơn vừa pass threshold (vd "delivering 7h15m")
+  //  - Socket trigger (xem onStatusChanged bên dưới): refetch khi status đổi
+  //  - Auto-open modal khi alert COUNT TĂNG so với lần trước (không phiền nếu giảm)
+  const prevAlertCount = useRef<number | null>(null)
+
+  const refetchAlerts = useCallback(async () => {
+    try {
+      const res = await api<AlertsResponse>('/orders/admin/overdue')
+      const count = res.alerts.length
+      setAlerts(res.alerts)
+      // Lần đầu: open nếu có alert. Sau đó: chỉ open khi tăng (alert mới xuất hiện)
+      if (prevAlertCount.current === null) {
+        if (count > 0) setShowAlerts(true)
+      } else if (count > prevAlertCount.current) {
+        setShowAlerts(true)
       }
-    })()
-    return () => { alive = false }
+      prevAlertCount.current = count
+    } catch {
+      /* swallow — cảnh báo nice-to-have, không chặn page */
+    }
   }, [])
+
+  useEffect(() => {
+    void refetchAlerts()
+    const id = window.setInterval(() => void refetchAlerts(), 60_000)
+    return () => window.clearInterval(id)
+  }, [refetchAlerts])
 
   useEffect(() => {
     let alive = true
@@ -380,7 +392,9 @@ export default function AdminOrdersPage() {
   const onStatusChanged = useCallback((p: OrderStatusChangedPayload) => {
     // Cross-admin sync: update row.status nếu nó có trong list hiện tại
     setOrders(prev => prev?.map(r => r.code === p.code ? { ...r, status: p.to as OrderStatus } : r) ?? prev)
-  }, [])
+    // Status change có thể tạo/xoá alert (vd paid → preparing → không còn pending_payment_overdue)
+    void refetchAlerts()
+  }, [refetchAlerts])
 
   const { connected, joined } = useStaffOrdersSocket({ onCreated, onStatusChanged })
 
