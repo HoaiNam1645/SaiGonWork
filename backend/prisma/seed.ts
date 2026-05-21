@@ -21,6 +21,10 @@
 
 import { PrismaClient } from '@prisma/client'
 import bcrypt from 'bcryptjs'
+// Import route registry để populate definePermission() calls trước khi sync.
+// CHÚ Ý: side-effect import — tất cả file route được load → registry đầy đủ.
+import '../src/routes'
+import { syncPermissionsFromRegistry } from '../src/lib/permissionSync'
 
 const prisma = new PrismaClient()
 
@@ -328,6 +332,110 @@ async function seedMenu() {
 }
 
 // =====================================================================
+// Roles + permissions (RBAC)
+// =====================================================================
+
+/**
+ * 3 system role:
+ *   - admin    → tất cả permission
+ *   - staff    → STAFF_PERMISSIONS (curate dưới đây — orders + read các thứ khác)
+ *   - customer → không có admin permission
+ *
+ * System role không xóa được (isSystem=true). Admin có thể tạo thêm custom roles
+ * qua UI /admin/roles (Phase 3).
+ *
+ * Idempotent: chạy nhiều lần OK. Permission có sẵn ở DB nhưng không assign vẫn an toàn.
+ */
+
+const STAFF_PERMISSIONS = [
+  // Orders — view + xử lý đơn (không sửa, không hủy admin-level)
+  'orders.admin.list',
+  'orders.admin.overdue',
+  'orders.status.change',
+  'orders.cancel',          // staff cancel bị giới hạn trong handler (state machine)
+  // Customers — chỉ list/read (không update/deactivate)
+  'customers.list',
+  'customers.read',
+  // Promotions — read-only
+  'promotions.list',
+  'promotions.read',
+]
+
+async function seedRolesAndPermissions() {
+  // 1. Sync permissions từ code registry → DB
+  const syncResult = await syncPermissionsFromRegistry()
+  const synced = syncResult.added.length + syncResult.updated.length + syncResult.reactivated.length
+  console.log(`  ✓ permissions synced — added=${syncResult.added.length} updated=${syncResult.updated.length} reactivated=${syncResult.reactivated.length} deprecated=${syncResult.deprecated.length}`)
+
+  // 2. Upsert 3 system roles
+  const adminRole = await prisma.appRole.upsert({
+    where:  { key: 'admin' },
+    update: { name: 'Administrator', description: 'Toàn quyền hệ thống', isSystem: true },
+    create: { key: 'admin',    name: 'Administrator', description: 'Toàn quyền hệ thống', isSystem: true },
+  })
+  const staffRole = await prisma.appRole.upsert({
+    where:  { key: 'staff' },
+    update: { name: 'Staff', description: 'Nhân viên — xử lý đơn hàng', isSystem: true },
+    create: { key: 'staff',    name: 'Staff', description: 'Nhân viên — xử lý đơn hàng', isSystem: true },
+  })
+  const customerRole = await prisma.appRole.upsert({
+    where:  { key: 'customer' },
+    update: { name: 'Customer', description: 'Khách hàng', isSystem: true },
+    create: { key: 'customer', name: 'Customer', description: 'Khách hàng', isSystem: true },
+  })
+
+  // 3. Admin role → tất cả permissions (loại bỏ deprecated)
+  const allPerms = await prisma.permission.findMany({
+    where:  { isDeprecated: false },
+    select: { id: true, key: true },
+  })
+
+  await assignPermissionsToRole(adminRole.id, allPerms.map(p => p.id))
+  console.log(`  ✓ role:admin → ${allPerms.length} permissions`)
+
+  // 4. Staff role → STAFF_PERMISSIONS (lookup id từ key)
+  const staffPermIds = allPerms.filter(p => STAFF_PERMISSIONS.includes(p.key)).map(p => p.id)
+  await assignPermissionsToRole(staffRole.id, staffPermIds)
+  console.log(`  ✓ role:staff → ${staffPermIds.length} permissions`)
+
+  // 5. Customer role → 0 permissions
+  await assignPermissionsToRole(customerRole.id, [])
+  console.log(`  ✓ role:customer → 0 permissions`)
+
+  // 6. Auto-assign role theo users.role enum cho user đã tồn tại
+  //    (chỉ insert nếu chưa có — không xóa role assignment do admin đã add tay)
+  const allUsers = await prisma.user.findMany({ select: { id: true, role: true } })
+  for (const u of allUsers) {
+    const targetRoleId =
+      u.role === 'admin'    ? adminRole.id    :
+      u.role === 'staff'    ? staffRole.id    :
+                              customerRole.id
+    await prisma.userRole.upsert({
+      where:  { userId_roleId: { userId: u.id, roleId: targetRoleId } },
+      update: {},
+      create: { userId: u.id, roleId: targetRoleId },
+    })
+  }
+  console.log(`  ✓ user_roles — assigned theo enum cho ${allUsers.length} users`)
+
+  if (synced > 0) {
+    console.log(`     (${syncResult.added.length} new permission keys vừa được tự động assign cho admin)`)
+  }
+}
+
+/** Replace toàn bộ permissions của 1 role bằng danh sách mới — idempotent. */
+async function assignPermissionsToRole(roleId: bigint, permissionIds: bigint[]) {
+  await prisma.$transaction(async (tx) => {
+    await tx.rolePermission.deleteMany({ where: { roleId } })
+    if (permissionIds.length > 0) {
+      await tx.rolePermission.createMany({
+        data: permissionIds.map(pid => ({ roleId, permissionId: pid })),
+      })
+    }
+  })
+}
+
+// =====================================================================
 // Main
 // =====================================================================
 
@@ -342,6 +450,8 @@ async function main() {
 
   const { catCount, dishCount, optCount } = await seedMenu()
   console.log(`  ✓ menu — ${catCount} categories, ${dishCount} dishes, ${optCount} new options`)
+
+  await seedRolesAndPermissions()
 
   console.log('\n✓ Seed done.')
 }

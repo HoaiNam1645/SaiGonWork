@@ -15,6 +15,11 @@ function buildTransport(): Transporter {
       env.MAIL_USERNAME && env.MAIL_PASSWORD
         ? { user: env.MAIL_USERNAME, pass: env.MAIL_PASSWORD }
         : undefined,
+    // Timeouts ngắn để fail nhanh khi SMTP unreachable (vd DO block port 587).
+    // Tránh request HTTP bị stuck rồi nginx trả 504.
+    connectionTimeout: 5_000,
+    greetingTimeout:   5_000,
+    socketTimeout:     10_000,
   })
 }
 

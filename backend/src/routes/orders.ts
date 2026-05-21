@@ -2,7 +2,6 @@ import { Router } from 'express'
 import * as ordersApi from '@/api/orders.api'
 import {
   requireAuth,
-  requireRole,
   attachUserIfPresent,
   attachGuestIfPresent,
   attachLookupIfPresent,
@@ -11,6 +10,33 @@ import {
 } from '@/middleware/auth'
 import { lookupCheckLimiter } from '@/middleware/rateLimit'
 import { ah } from '@/lib/asyncHandler'
+import { requirePermission } from '@/middleware/permission'
+import { definePermission } from '@/lib/permissionRegistry'
+
+// ──────────────────────────────────────────────────────────────────────
+// Permission registry — chỉ wrap các endpoint admin/staff. Endpoint
+// customer/guest dùng auth check riêng (requireAuth / requireAuthOrGuest).
+// ──────────────────────────────────────────────────────────────────────
+definePermission('orders.admin.list', {
+  method: 'GET', path: '/api/orders/admin/list',
+  module: 'orders', description: 'Xem danh sách đơn hàng (admin/staff)',
+})
+definePermission('orders.admin.overdue', {
+  method: 'GET', path: '/api/orders/admin/overdue',
+  module: 'orders', description: 'Xem cảnh báo đơn hàng quá hạn',
+})
+definePermission('orders.status.change', {
+  method: 'POST', path: '/api/orders/:code/status',
+  module: 'orders', description: 'Thay đổi trạng thái đơn hàng',
+})
+definePermission('orders.update', {
+  method: 'PATCH', path: '/api/orders/:code',
+  module: 'orders', description: 'Sửa thông tin đơn hàng (admin)',
+})
+definePermission('orders.cancel', {
+  method: 'DELETE', path: '/api/orders/:code',
+  module: 'orders', description: 'Hủy đơn hàng',
+})
 
 export const ordersRouter = Router()
 
@@ -28,7 +54,7 @@ ordersRouter.post(
 ordersRouter.get(
   '/admin/list',
   requireAuth,
-  requireRole('staff', 'admin'),
+  requirePermission('orders.admin.list'),
   ah(ordersApi.listForAdmin),
 )
 
@@ -36,7 +62,7 @@ ordersRouter.get(
 ordersRouter.get(
   '/admin/overdue',
   requireAuth,
-  requireRole('staff', 'admin'),
+  requirePermission('orders.admin.overdue'),
   ah(ordersApi.listOverduePending),
 )
 
@@ -85,7 +111,7 @@ ordersRouter.get('/', requireAuth, ah(ordersApi.listMine))
 ordersRouter.post(
   '/:code/status',
   requireAuth,
-  requireRole('staff', 'admin'),
+  requirePermission('orders.status.change'),
   ah(ordersApi.changeStatus),
 )
 
@@ -93,7 +119,7 @@ ordersRouter.post(
 ordersRouter.patch(
   '/:code',
   requireAuth,
-  requireRole('admin'),
+  requirePermission('orders.update'),
   ah(ordersApi.adminUpdateOrder),
 )
 
@@ -101,6 +127,6 @@ ordersRouter.patch(
 ordersRouter.delete(
   '/:code',
   requireAuth,
-  requireRole('staff', 'admin'),
+  requirePermission('orders.cancel'),
   ah(ordersApi.adminCancelOrder),
 )

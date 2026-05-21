@@ -2,7 +2,9 @@ import {
   IconDashboard,
   IconOrders,
   IconMenu,
+  IconTag,
   IconUsers,
+  IconShield,
 } from './AdminIcons'
 
 export interface AdminNavLeaf {
@@ -47,7 +49,7 @@ export const ADMIN_NAV: AdminNavGroup[] = [
           { labelKey: 'admin.nav.options',    href: '/admin/menu/options' },
         ],
       },
-      // TODO: bật lại khi /admin/promotions implement xong
+      { labelKey: 'admin.nav.promotions', icon: IconTag, href: '/admin/promotions' },
     ],
   },
   {
@@ -59,6 +61,19 @@ export const ADMIN_NAV: AdminNavGroup[] = [
         children: [
           { labelKey: 'admin.nav.customers', href: '/admin/customers' },
           { labelKey: 'admin.nav.staff',     href: '/admin/staff' },
+        ],
+      },
+    ],
+  },
+  {
+    labelKey: 'admin.nav.access_control',
+    items: [
+      {
+        labelKey: 'admin.nav.access_control',
+        icon: IconShield,
+        children: [
+          { labelKey: 'admin.nav.roles',       href: '/admin/roles' },
+          { labelKey: 'admin.nav.permissions', href: '/admin/permissions' },
         ],
       },
     ],

@@ -45,9 +45,68 @@ model User {
   auditLogs              AuditLog[]
   notifications          Notification[]
   notificationReads      NotificationRead[]
+  userRoles              UserRole[]
 
   @@index([role, isActive], name: "idx_role_active")
   @@map("users")
+}
+
+// ============================================================
+// RBAC — Roles + Permissions (auto-sync từ code registry)
+// ============================================================
+
+model AppRole {
+  id          BigInt   @id @default(autoincrement())
+  key         String   @unique @db.VarChar(50)              // 'admin' | 'staff' | 'kitchen' | ...
+  name        String   @db.VarChar(100)
+  description String?  @db.VarChar(255)
+  isSystem    Boolean  @default(false) @map("is_system")    // 3 role gốc: không xóa được
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  permissions RolePermission[]
+  users       UserRole[]
+
+  @@map("app_roles")
+}
+
+model Permission {
+  id          BigInt   @id @default(autoincrement())
+  key         String   @unique @db.VarChar(100)             // 'orders.admin.list'
+  method      String   @db.VarChar(10)                       // 'GET' | 'POST'...
+  path        String   @db.VarChar(255)                      // '/api/orders/admin/list'
+  module      String?  @db.VarChar(50)                       // 'orders' | 'menu' | 'users'... group ở UI
+  description String?  @db.VarChar(255)
+  isDeprecated Boolean @default(false) @map("is_deprecated") // route bị xóa nhưng vẫn còn ref → giữ row
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  roles RolePermission[]
+
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  roleId       BigInt @map("role_id")
+  permissionId BigInt @map("permission_id")
+  role         AppRole    @relation(fields: [roleId],       references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model UserRole {
+  userId    BigInt @map("user_id")
+  roleId    BigInt @map("role_id")
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      AppRole @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now()) @map("created_at")
+
+  @@id([userId, roleId])
+  @@map("user_roles")
 }
 
 // ============================================================

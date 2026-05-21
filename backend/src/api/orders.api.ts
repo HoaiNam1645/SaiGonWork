@@ -927,21 +927,170 @@ export async function listForAdmin(req: Request, res: Response) {
 }
 
 /**
- * GET /api/orders/admin/overdue — list đơn pending_payment quá hạn 1 ngày.
- * Dùng cho cảnh báo trên admin/staff dashboard.
+ * GET /api/orders/admin/overdue — alerts cho dashboard admin/staff.
+ * Trả về list đơn match 1 trong 5 condition cần attention, kèm `severity` + `reason`.
+ *
+ * Severity:
+ *  - critical: cần xử lý gấp (khách đang đợi, lỡ hẹn)
+ *  - warning:  nên xử lý sớm (kitchen quên, khách quên trả tiền)
+ *
+ * Lưu ý: dùng `updatedAt` làm proxy cho thời gian status chuyển — chính xác đủ
+ * cho dashboard, không cần join `order_status_history` (đắt).
  */
+type AlertSeverity = 'critical' | 'warning'
+type AlertReason =
+  | 'pending_payment_overdue'
+  | 'paid_not_preparing'
+  | 'preparing_overdue'
+  | 'delivering_overdue'
+  | 'scheduled_due_soon'
+
+interface OrderAlert {
+  id:             string
+  code:           string
+  status:         string
+  total:          number
+  currency:       string
+  contactName:    string
+  contactPhone:   string
+  paymentMethod:  string
+  createdAt:      Date
+  updatedAt:      Date
+  paidAt:         Date | null
+  scheduledAt:    Date | null
+  severity:       AlertSeverity
+  reason:         AlertReason
+  minutesElapsed: number
+}
+
 export async function listOverduePending(_req: Request, res: Response) {
-  const cutoff = new Date(Date.now() - 24 * 60 * 60 * 1000)
-  const orders = await prisma.order.findMany({
+  const now = Date.now()
+
+  // Threshold (phút) — tune theo nghiệp vụ
+  const PENDING_PAYMENT_MIN = 30       // 30 phút
+  const PAID_NOT_PREP_MIN   = 30
+  const PREPARING_MIN       = 45
+  const DELIVERING_MIN      = 60
+  const SCHEDULED_LEAD_MIN  = 30       // còn ≤30 phút tới scheduled_at mà chưa preparing
+
+  // Load store settings để tính kitchen_prep cho scheduled alert (nếu null fallback 25)
+  const store = await prisma.storeSettings.findUnique({ where: { id: 1 } })
+  const kitchenPrep = store?.kitchenPrepMinutes ?? 25
+
+  // Query OR điều kiện — Prisma không có raw OR cho computed fields, query rộng rồi filter JS
+  const candidates = await prisma.order.findMany({
     where: {
-      status:    'pending_payment',
-      createdAt: { lt: cutoff },
+      OR: [
+        // pending_payment quá hạn
+        {
+          status:    'pending_payment',
+          createdAt: { lt: new Date(now - PENDING_PAYMENT_MIN * 60_000) },
+        },
+        // paid quá lâu chưa preparing
+        {
+          status: 'paid',
+          paidAt: { lt: new Date(now - PAID_NOT_PREP_MIN * 60_000) },
+        },
+        // preparing quá lâu
+        {
+          status:    'preparing',
+          updatedAt: { lt: new Date(now - PREPARING_MIN * 60_000) },
+        },
+        // delivering quá lâu
+        {
+          status:    'delivering',
+          updatedAt: { lt: new Date(now - DELIVERING_MIN * 60_000) },
+        },
+        // scheduled sắp tới mà chưa preparing
+        {
+          status:      { in: ['pending_payment', 'paid'] },
+          scheduledAt: {
+            not: null,
+            lt:  new Date(now + (SCHEDULED_LEAD_MIN + kitchenPrep) * 60_000),
+            gte: new Date(now), // chưa quá hạn — quá hạn để check riêng (delivering overdue handle case này)
+          },
+        },
+      ],
     },
     orderBy: { createdAt: 'asc' },
-    take:    100,
-    include: { items: { orderBy: { id: 'asc' } } },
+    take:    200,
   })
-  res.json({ orders: orders.map(o => shapeOrder(o, o.items)) })
+
+  // Classify mỗi order vào alert reason cụ thể + severity
+  const alerts: OrderAlert[] = []
+  for (const o of candidates) {
+    const minSince = (date: Date | null) =>
+      date ? Math.floor((now - date.getTime()) / 60_000) : 0
+
+    let alert: { reason: AlertReason; severity: AlertSeverity; minutesElapsed: number } | null = null
+
+    if (o.status === 'pending_payment' && o.createdAt) {
+      const m = minSince(o.createdAt)
+      if (m >= PENDING_PAYMENT_MIN) {
+        alert = { reason: 'pending_payment_overdue', severity: 'warning', minutesElapsed: m }
+      }
+    }
+    if (!alert && o.status === 'paid' && o.paidAt) {
+      const m = minSince(o.paidAt)
+      if (m >= PAID_NOT_PREP_MIN) {
+        alert = { reason: 'paid_not_preparing', severity: 'warning', minutesElapsed: m }
+      }
+    }
+    if (!alert && o.status === 'preparing') {
+      const m = minSince(o.updatedAt)
+      if (m >= PREPARING_MIN) {
+        alert = { reason: 'preparing_overdue', severity: 'warning', minutesElapsed: m }
+      }
+    }
+    if (!alert && o.status === 'delivering') {
+      const m = minSince(o.updatedAt)
+      if (m >= DELIVERING_MIN) {
+        alert = { reason: 'delivering_overdue', severity: 'critical', minutesElapsed: m }
+      }
+    }
+    // Scheduled coming up — chỉ flag nếu chưa preparing/delivering (status pending_payment / paid)
+    if (!alert && o.scheduledAt && (o.status === 'pending_payment' || o.status === 'paid')) {
+      const leadMs = o.scheduledAt.getTime() - now
+      const leadMin = Math.floor(leadMs / 60_000)
+      // Còn ít hơn `kitchenPrep + 10` phút mà chưa nấu → critical
+      if (leadMin >= 0 && leadMin <= kitchenPrep + 10) {
+        alert = { reason: 'scheduled_due_soon', severity: 'critical', minutesElapsed: leadMin }
+      }
+    }
+
+    if (alert) {
+      alerts.push({
+        id:             o.id.toString(),
+        code:           o.code,
+        status:         o.status,
+        total:          Number(o.total),
+        currency:       o.currency,
+        contactName:    o.contactName,
+        contactPhone:   o.contactPhone,
+        paymentMethod:  o.paymentMethod,
+        createdAt:      o.createdAt,
+        updatedAt:      o.updatedAt,
+        paidAt:         o.paidAt,
+        scheduledAt:    o.scheduledAt,
+        ...alert,
+      })
+    }
+  }
+
+  // Sort: critical trước, trong cùng severity sort theo minutesElapsed desc
+  alerts.sort((a, b) => {
+    if (a.severity !== b.severity) return a.severity === 'critical' ? -1 : 1
+    return b.minutesElapsed - a.minutesElapsed
+  })
+
+  res.json({
+    alerts,
+    counts: {
+      total:    alerts.length,
+      critical: alerts.filter(a => a.severity === 'critical').length,
+      warning:  alerts.filter(a => a.severity === 'warning').length,
+    },
+  })
 }
 
 // =====================================================================

@@ -2,7 +2,7 @@
 //   pm2 start deploy/pm2/ecosystem.config.js
 //   pm2 save && pm2 startup
 //
-// Cấu trúc thư mục mặc định trên server (sửa cwd nếu khác):
+// Cấu trúc thư mục mặc định trên server (rsync split):
 //   /var/www/sai-gon-work/
 //     ├── frontend/    (Next.js, đã chạy `npm run build`)
 //     └── backend/     (Express, đã chạy `npm run build`)

@@ -337,6 +337,25 @@ export async function me(req: Request, res: Response) {
   res.json({ user: userPublic(user) })
 }
 
+/**
+ * GET /api/auth/me/permissions — list permission keys của user hiện tại.
+ * FE dùng để gate UI (show/hide buttons, menu items).
+ *
+ * Trả flat array string. Cache-able client-side trong session.
+ */
+export async function mePermissions(req: Request, res: Response) {
+  const userId = BigInt(req.user!.sub)
+  const rows = await prisma.$queryRaw<{ key: string }[]>`
+    SELECT DISTINCT p.key
+    FROM user_roles ur
+    JOIN role_permissions rp ON rp.role_id = ur.role_id
+    JOIN permissions p       ON p.id      = rp.permission_id
+    WHERE ur.user_id = ${userId}
+      AND p.is_deprecated = false
+  `
+  res.json({ permissions: rows.map(r => r.key) })
+}
+
 export async function updateProfile(req: Request, res: Response) {
   const userId = BigInt(req.user!.sub)
   const body = updateProfileSchema.parse(req.body)

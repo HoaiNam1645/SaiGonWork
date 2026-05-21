@@ -117,6 +117,38 @@ interface OrderMutationResponse {
   order: RestOrder
 }
 
+// ─── Alerts ───
+type AlertSeverity = 'critical' | 'warning'
+type AlertReason =
+  | 'pending_payment_overdue'
+  | 'paid_not_preparing'
+  | 'preparing_overdue'
+  | 'delivering_overdue'
+  | 'scheduled_due_soon'
+
+interface OrderAlert {
+  id:             string
+  code:           string
+  status:         OrderStatus
+  total:          number
+  currency:       string
+  contactName:    string
+  contactPhone:   string
+  paymentMethod:  PaymentMethod
+  createdAt:      string
+  updatedAt:      string
+  paidAt:         string | null
+  scheduledAt:    string | null
+  severity:       AlertSeverity
+  reason:         AlertReason
+  minutesElapsed: number
+}
+
+interface AlertsResponse {
+  alerts: OrderAlert[]
+  counts: { total: number; critical: number; warning: number }
+}
+
 // =====================================================================
 // Constants
 // =====================================================================
@@ -222,9 +254,9 @@ export default function AdminOrdersPage() {
   const [editing,        setEditing]        = useState<OrderRow | null>(null)
   const [cancelling,     setCancelling]     = useState<OrderRow | null>(null)
 
-  // Overdue pending_payment cảnh báo — chỉ hiện lần đầu vào page mỗi session.
-  const [overdue,     setOverdue]     = useState<OrderRow[] | null>(null)
-  const [showOverdue, setShowOverdue] = useState(false)
+  // Alerts (5 loại): pending_payment quá hạn, paid chưa preparing, preparing/delivering quá lâu, scheduled sắp tới
+  const [alerts,     setAlerts]     = useState<OrderAlert[] | null>(null)
+  const [showAlerts, setShowAlerts] = useState(false)
 
   const filtersActive = isAnyFilterActive(status, filters)
 
@@ -235,17 +267,16 @@ export default function AdminOrdersPage() {
     return () => window.clearInterval(id)
   }, [])
 
-  // ─── Fetch overdue pending_payment mỗi lần vào page ───
+  // ─── Fetch order alerts mỗi lần vào page ───
   useEffect(() => {
     let alive = true
     ;(async () => {
       try {
-        const res = await api<{ orders: RestOrder[] }>('/orders/admin/overdue')
+        const res = await api<AlertsResponse>('/orders/admin/overdue')
         if (!alive) return
-        const rows = res.orders.map(restToRow)
-        if (rows.length > 0) {
-          setOverdue(rows)
-          setShowOverdue(true)
+        if (res.alerts.length > 0) {
+          setAlerts(res.alerts)
+          setShowAlerts(true)
         }
       } catch {
         /* swallow — cảnh báo nice-to-have, không chặn page */
@@ -519,14 +550,13 @@ export default function AdminOrdersPage() {
           onConfirmed={(o) => { replaceRow(o); setCancelling(null) }}
         />
       )}
-      {showOverdue && overdue && overdue.length > 0 && (
-        <OverduePendingModal
-          orders={overdue}
-          locale={locale}
+      {showAlerts && alerts && alerts.length > 0 && (
+        <AlertsModal
+          alerts={alerts}
           t={t}
-          onClose={() => setShowOverdue(false)}
+          onClose={() => setShowAlerts(false)}
           onView={(code) => {
-            setShowOverdue(false)
+            setShowAlerts(false)
             router.push(`/admin/orders/${encodeURIComponent(code)}`)
           }}
         />
@@ -536,15 +566,23 @@ export default function AdminOrdersPage() {
 }
 
 // =====================================================================
-// OverduePendingModal
+// AlertsModal — multi-severity overdue alerts
 // =====================================================================
 
-function OverduePendingModal({
-  orders, locale, t, onClose, onView,
+// Thứ tự tab hiển thị — critical trước (delivering, scheduled), warning sau
+const ALERT_REASON_ORDER: AlertReason[] = [
+  'delivering_overdue',
+  'scheduled_due_soon',
+  'pending_payment_overdue',
+  'paid_not_preparing',
+  'preparing_overdue',
+]
+
+function AlertsModal({
+  alerts, t, onClose, onView,
 }: {
-  orders: OrderRow[]
-  locale: string
-  t:      (k: string) => string
+  alerts:  OrderAlert[]
+  t:       (k: string) => string
   onClose: () => void
   onView:  (code: string) => void
 }) {
@@ -554,20 +592,41 @@ function OverduePendingModal({
     return () => document.removeEventListener('keydown', onKey)
   }, [onClose])
 
-  const dtFmt = locale === 'de' ? 'de-DE' : 'en-GB'
+  // Group alerts theo reason
+  const grouped = ALERT_REASON_ORDER
+    .map((reason) => ({
+      reason,
+      items: alerts.filter((a) => a.reason === reason),
+    }))
+    .filter((g) => g.items.length > 0)
+
+  // Default active tab: tab đầu tiên có alert (đã sort theo priority order)
+  const [activeReason, setActiveReason] = useState<AlertReason>(grouped[0]?.reason)
+  const activeGroup  = grouped.find((g) => g.reason === activeReason) ?? grouped[0]
+  const activeItems  = activeGroup?.items ?? []
+  const activeSeverity: AlertSeverity = activeItems[0]?.severity ?? 'warning'
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40"
       onClick={onClose}
     >
       <div
         className="w-full max-w-2xl max-h-[85vh] flex flex-col rounded-xl bg-white shadow-2xl shadow-gray-900/10"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-warning-100 bg-warning-50/60 rounded-t-xl">
+        {/* Header */}
+        <div
+          className={`flex items-center justify-between px-5 py-4 border-b rounded-t-xl ${
+            activeSeverity === 'critical' ? 'bg-error-50/60 border-error-100' : 'bg-warning-50/60 border-warning-100'
+          }`}
+        >
           <div className="flex items-center gap-2.5">
-            <span className="inline-flex items-center justify-center w-8 h-8 rounded-full bg-warning-100 text-warning-600">
+            <span
+              className={`inline-flex items-center justify-center w-8 h-8 rounded-full ${
+                activeSeverity === 'critical' ? 'bg-error-100 text-error-600' : 'bg-warning-100 text-warning-600'
+              }`}
+            >
               <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
                 <line x1="12" y1="9" x2="12" y2="13" />
@@ -575,9 +634,9 @@ function OverduePendingModal({
               </svg>
             </span>
             <div>
-              <h3 className="text-base font-semibold text-gray-800">{t('admin.orders.overdue.title')}</h3>
+              <h3 className="text-base font-semibold text-gray-800">{t('admin.orders.alerts.title')}</h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                {t('admin.orders.overdue.subtitle').replace('{{count}}', String(orders.length))}
+                {t('admin.orders.alerts.total_count').replace('{{n}}', String(alerts.length))}
               </p>
             </div>
           </div>
@@ -593,39 +652,72 @@ function OverduePendingModal({
           </button>
         </div>
 
+        {/* Tabs */}
+        <div className="px-5 pt-3 pb-0 border-b border-gray-100 overflow-x-auto">
+          <div className="flex gap-1 min-w-max">
+            {grouped.map((g) => {
+              const isActive = g.reason === activeReason
+              const groupSeverity: AlertSeverity = g.items[0].severity
+              return (
+                <button
+                  key={g.reason}
+                  type="button"
+                  onClick={() => setActiveReason(g.reason)}
+                  className={`relative px-3 py-2 text-xs font-medium rounded-t-lg transition-colors flex items-center gap-2 whitespace-nowrap ${
+                    isActive
+                      ? 'text-gray-900 border-b-2 -mb-px ' + (groupSeverity === 'critical' ? 'border-error-500' : 'border-warning-500')
+                      : 'text-gray-500 hover:text-gray-800 border-b-2 -mb-px border-transparent'
+                  }`}
+                >
+                  <span>{t(`admin.orders.alerts.tab.${g.reason}`)}</span>
+                  <span
+                    className={`inline-flex items-center justify-center min-w-[18px] h-[18px] px-1.5 text-[10px] font-semibold rounded-full ${
+                      groupSeverity === 'critical'
+                        ? 'bg-error-100 text-error-600'
+                        : 'bg-warning-100 text-warning-600'
+                    }`}
+                  >
+                    {g.items.length}
+                  </span>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
+        {/* List */}
         <div className="overflow-y-auto px-5 py-3 divide-y divide-gray-100">
-          {orders.map((o) => {
-            const ageMs   = Date.now() - new Date(o.createdAt).getTime()
-            const ageDays = Math.floor(ageMs / (24 * 60 * 60 * 1000))
-            const created = new Date(o.createdAt).toLocaleString(dtFmt, {
-              day: '2-digit', month: '2-digit', year: '2-digit',
-              hour: '2-digit', minute: '2-digit',
-            })
+          {activeItems.map((a) => {
+            const isCritical = a.severity === 'critical'
+            const elapsedLabel = a.minutesElapsed >= 60
+              ? `${Math.floor(a.minutesElapsed / 60)}h ${a.minutesElapsed % 60}m`
+              : `${a.minutesElapsed}m`
+
+            const reasonText = t(`admin.orders.alerts.reason.${a.reason}`)
+              .replace('{{elapsed}}', elapsedLabel)
+
             return (
-              <div key={o.id} className="py-3 flex items-center gap-3">
+              <div key={a.id} className="py-3 flex items-center gap-3">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-medium text-gray-800">{o.code}</span>
-                    <span className="text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded bg-warning-100 text-warning-600">
-                      {t('admin.orders.overdue.days_ago').replace('{{n}}', String(ageDays))}
+                    <span className="text-sm font-medium text-gray-800">{a.code}</span>
+                    <span className="text-[11px] text-gray-500">
+                      {t(`admin.status.${a.status}`)}
                     </span>
-                    {o.isGuest && (
-                      <span className="text-[10px] uppercase font-semibold tracking-wider px-1.5 py-0.5 rounded text-gray-600 border border-gray-200">
-                        {t('admin.orders.guest_badge')}
-                      </span>
-                    )}
                   </div>
-                  <div className="text-xs text-gray-500 mt-0.5 truncate">
-                    {o.contactName} · {o.contactPhone} · {o.contactEmail}
+                  <div className={`text-xs mt-0.5 ${isCritical ? 'text-error-700' : 'text-gray-600'}`}>
+                    {reasonText}
                   </div>
-                  <div className="text-[11px] text-gray-400 mt-0.5 tabular-nums">{created}</div>
+                  <div className="text-[11px] text-gray-400 mt-0.5 truncate">
+                    {a.contactName} · {a.contactPhone}
+                  </div>
                 </div>
                 <div className="text-sm text-gray-800 font-medium tabular-nums whitespace-nowrap">
-                  {formatEuro(o.total)}
+                  {formatEuro(a.total)}
                 </div>
                 <button
                   type="button"
-                  onClick={() => onView(o.code)}
+                  onClick={() => onView(a.code)}
                   className="text-xs font-medium px-3 py-1.5 rounded-lg bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 whitespace-nowrap"
                 >
                   {t('admin.orders.action.view')}
@@ -641,7 +733,7 @@ function OverduePendingModal({
             onClick={onClose}
             className="text-sm font-medium px-4 py-2 rounded-lg bg-brand-500 text-white hover:bg-brand-600 transition-colors"
           >
-            {t('admin.orders.overdue.dismiss')}
+            {t('admin.orders.alerts.dismiss')}
           </button>
         </div>
       </div>

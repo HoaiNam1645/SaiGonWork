@@ -46,6 +46,11 @@ const schema = z.object({
   TRUST_PROXY: z.string().default('1'),
   // Nếu deploy sau Cloudflare → bật để dùng header CF-Connecting-IP làm canonical IP.
   TRUST_CLOUDFLARE: z.coerce.boolean().default(false),
+
+  // ----- RBAC -----
+  // Phase 1 rollout: chưa enforce permission, chỉ log warning. Bật true khi đã seed
+  // đủ roles cho tất cả staff/admin user.
+  ENFORCE_PERMISSIONS: z.coerce.boolean().default(false),
 })
 
 export const env = schema.parse(process.env)

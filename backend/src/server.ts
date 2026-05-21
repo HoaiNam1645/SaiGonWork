@@ -5,6 +5,7 @@ import { env } from './config/env'
 import { setIo } from './lib/socket'
 import { verifyAccess, verifyGuest, type AccessTokenPayload, type GuestTokenPayload } from './lib/jwt'
 import { isOriginAllowed } from './lib/corsOrigin'
+import { syncPermissionsFromRegistry } from './lib/permissionSync'
 
 const app = createApp()
 const httpServer = createServer(app)
@@ -95,6 +96,22 @@ io.on('connection', (socket) => {
   })
 })
 
-httpServer.listen(env.PORT, () => {
+httpServer.listen(env.PORT, async () => {
   console.log(`[server] http://localhost:${env.PORT} (${env.NODE_ENV})`)
+
+  // Sync permission registry → DB (idempotent, an toàn nếu schema chưa migrate)
+  try {
+    const result = await syncPermissionsFromRegistry()
+    const total  = result.added.length + result.updated.length + result.reactivated.length + result.deprecated.length
+    if (total > 0) {
+      console.log(
+        `[permission] sync done — added=${result.added.length} updated=${result.updated.length} ` +
+        `reactivated=${result.reactivated.length} deprecated=${result.deprecated.length}`,
+      )
+    } else {
+      console.log('[permission] sync done — no changes')
+    }
+  } catch (e) {
+    console.warn('[permission] sync failed (DB chưa migrate?):', e instanceof Error ? e.message : e)
+  }
 })
