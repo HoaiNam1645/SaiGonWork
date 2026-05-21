@@ -91,6 +91,13 @@ body:has([data-admin-shell]) {
   background-color: #f9fafb;
   color: #344054;
   font-family: var(--font-outfit);
+  /* Chặn scroll ngang trên mobile — sidebar fixed bị translate -100% nằm ngoài
+   * viewport có thể lộ ra nếu body cho phép scroll-x. */
+  overflow-x: hidden;
+}
+
+html:has(body [data-admin-shell]) {
+  overflow-x: hidden;
 }
 
 .menu-page-bg {

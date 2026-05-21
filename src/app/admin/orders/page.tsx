@@ -499,15 +499,15 @@ export default function AdminOrdersPage() {
                   <Table>
                     <TableHeader className="border-b border-gray-100 bg-gray-50/60">
                       <TableRow>
-                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start">{t('admin.orders.col.code')}</TableCell>
-                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start">{t('admin.orders.col.customer')}</TableCell>
-                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start">{t('admin.orders.col.address')}</TableCell>
-                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start">{t('admin.orders.col.items')}</TableCell>
+                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start whitespace-nowrap">{t('admin.orders.col.code')}</TableCell>
+                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start whitespace-nowrap">{t('admin.orders.col.customer')}</TableCell>
+                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start whitespace-nowrap">{t('admin.orders.col.address')}</TableCell>
+                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start whitespace-nowrap">{t('admin.orders.col.items')}</TableCell>
                         <SortableHeader<SortKey> sortKey="total" activeKey={sortKey} activeDir={sortDir} onSort={handleSort} align="right">{t('admin.orders.col.total')}</SortableHeader>
-                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start">{t('admin.orders.col.payment')}</TableCell>
-                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start">{t('admin.orders.col.status')}</TableCell>
+                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start whitespace-nowrap">{t('admin.orders.col.payment')}</TableCell>
+                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-start whitespace-nowrap">{t('admin.orders.col.status')}</TableCell>
                         <SortableHeader<SortKey> sortKey="created" activeKey={sortKey} activeDir={sortDir} onSort={handleSort} align="right">{t('admin.orders.col.created')}</SortableHeader>
-                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-right"><span className="sr-only">Actions</span></TableCell>
+                        <TableCell isHeader className="px-5 py-3 font-medium text-gray-500 text-[12px] uppercase tracking-wider text-right whitespace-nowrap"><span className="sr-only">Actions</span></TableCell>
                       </TableRow>
                     </TableHeader>
                     <TableBody className="divide-y divide-gray-100">
@@ -653,7 +653,7 @@ function AlertsModal({
         </div>
 
         {/* Tabs */}
-        <div className="px-5 pt-3 pb-0 border-b border-gray-100 overflow-x-auto">
+        <div className="px-5 pt-3 pb-0 border-b border-gray-100 overflow-x-auto overflow-y-hidden shrink-0">
           <div className="flex gap-1 min-w-max">
             {grouped.map((g) => {
               const isActive = g.reason === activeReason
@@ -686,7 +686,7 @@ function AlertsModal({
         </div>
 
         {/* List */}
-        <div className="overflow-y-auto px-5 py-3 divide-y divide-gray-100">
+        <div className="flex-1 min-h-0 overflow-y-auto px-5 py-3 divide-y divide-gray-100">
           {activeItems.map((a) => {
             const isCritical = a.severity === 'critical'
             const elapsedLabel = a.minutesElapsed >= 60
@@ -887,13 +887,14 @@ function StatusSelect({
       width="14rem"
       trigger={
         <span
-          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium ${badgeClass} ${
+          title={t(STATUS_LABEL[current])}
+          className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium max-w-[140px] whitespace-nowrap ${badgeClass} ${
             canClick ? 'cursor-pointer hover:opacity-80' : 'cursor-default'
           }`}
         >
-          {t(STATUS_LABEL[current])}
+          <span className="truncate">{t(STATUS_LABEL[current])}</span>
           {canClick && (
-            <svg className="w-3 h-3 opacity-60" viewBox="0 0 12 12" fill="currentColor">
+            <svg className="w-3 h-3 opacity-60 shrink-0" viewBox="0 0 12 12" fill="currentColor">
               <path d="M6 9l4-5H2z" />
             </svg>
           )}
