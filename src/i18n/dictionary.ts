@@ -266,8 +266,10 @@ const de: Dict = {
   'checkout.payment.card_desc': 'Visa, Mastercard, Amex',
   'checkout.payment.paypal': 'PayPal',
   'checkout.payment.paypal_desc': 'Sicher mit PayPal bezahlen',
-  'checkout.payment.cash': 'Bar bei Lieferung',
-  'checkout.payment.cash_desc': 'Bezahlen Sie beim Fahrer',
+  'checkout.payment.cash': 'Barzahlung bei Lieferung',
+  'checkout.payment.cash_desc': 'Bei Erhalt der Bestellung bezahlen',
+  'checkout.payment.cash_hint':
+    'Zahlen Sie direkt beim Fahrer – bar, per Überweisung oder mit Karte.',
   'checkout.payment.bank': 'Banküberweisung (QR)',
   'checkout.payment.bank_desc': 'QR-Code scannen und mit Ihrer Bank-App bezahlen',
   'checkout.payment.bank_hint':
@@ -1319,7 +1321,9 @@ const en: Dict = {
   'checkout.payment.paypal': 'PayPal',
   'checkout.payment.paypal_desc': 'Pay securely with PayPal',
   'checkout.payment.cash': 'Cash on delivery',
-  'checkout.payment.cash_desc': 'Pay the driver in cash',
+  'checkout.payment.cash_desc': 'Pay when your order arrives',
+  'checkout.payment.cash_hint':
+    'Pay the driver directly — in cash, by bank transfer, or by card.',
   'checkout.payment.bank': 'Bank transfer (QR)',
   'checkout.payment.bank_desc': 'Scan a QR code and pay with your banking app',
   'checkout.payment.bank_hint':

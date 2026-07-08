@@ -44,12 +44,13 @@ const CheckoutMap = dynamic(() => import('@/components/CheckoutMap'), {
   ),
 })
 
-// MVP: chỉ enable bank_qr_image. Cash + PayPal giữ trong DB cho V2.
-type PaymentMethod = 'bank'
+// Bank QR (upload chứng từ) + Cash on delivery. PayPal giữ trong DB cho sau.
+type PaymentMethod = 'bank' | 'cash'
 
 type ApiPaymentMethod = 'cash_on_delivery' | 'paypal' | 'bank_qr_image'
 const PAYMENT_API_MAP: Record<PaymentMethod, ApiPaymentMethod> = {
   bank: 'bank_qr_image',
+  cash: 'cash_on_delivery',
 }
 
 interface CreateOrderResponse {
@@ -77,7 +78,7 @@ export default function CheckoutPage() {
   const [destination, setDestination] = useState<LatLng | null>(null)
   const [savedAddrId, setSavedAddrId] = useState<string | null>(null)
 
-  const payment: PaymentMethod = 'bank'  // MVP: locked
+  const [payment, setPayment] = useState<PaymentMethod>('bank')
   const [note, setNote] = useState('')
 
   // Promotion state — preview, BE recompute lúc submit
@@ -662,36 +663,23 @@ export default function CheckoutPage() {
                 </div>
               </FormCard>
 
-              {/* Payment: chỉ bank QR cho MVP */}
+              {/* Payment: Bank QR (upload chứng từ) hoặc tiền mặt khi nhận hàng */}
               <FormCard step="③" title={t('checkout.section.payment')}>
-                <div
-                  className="rounded-xl px-4 py-3"
-                  style={{ backgroundColor: '#e8e6dc', boxShadow: '0 0 0 2px #c96442' }}
-                >
-                  <div className="flex items-start gap-3">
-                    <span
-                      className="flex-shrink-0 mt-1 w-4 h-4 rounded-full border-2 border-[#c96442] bg-[#c96442]"
-                      style={{ boxShadow: 'inset 0 0 0 3px #faf9f5' }}
-                    />
-                    <div className="flex-1">
-                      <div className="font-medium text-[#141413] text-[14px] leading-tight">
-                        {t('checkout.payment.bank')}
-                      </div>
-                      <div className="text-[12px] text-[#87867f] mt-0.5">
-                        {t('checkout.payment.bank_desc')}
-                      </div>
-                      <div
-                        className="mt-3 flex items-start gap-2.5 rounded-lg bg-[#faf9f5] px-3 py-2 text-[12px] text-[#5e5d59]"
-                        style={{ boxShadow: '0 0 0 1px #f0eee6' }}
-                      >
-                        <svg className="w-3.5 h-3.5 text-[#c96442] mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <circle cx="12" cy="12" r="10" />
-                          <path d="M12 8v4M12 16h.01" />
-                        </svg>
-                        <span>{t('checkout.payment.bank_hint')}</span>
-                      </div>
-                    </div>
-                  </div>
+                <div className="space-y-2.5">
+                  <PaymentOption
+                    selected={payment === 'bank'}
+                    onSelect={() => setPayment('bank')}
+                    title={t('checkout.payment.bank')}
+                    desc={t('checkout.payment.bank_desc')}
+                    hint={t('checkout.payment.bank_hint')}
+                  />
+                  <PaymentOption
+                    selected={payment === 'cash'}
+                    onSelect={() => { setPayment('cash'); setBankProofUrl(null) }}
+                    title={t('checkout.payment.cash')}
+                    desc={t('checkout.payment.cash_desc')}
+                    hint={t('checkout.payment.cash_hint')}
+                  />
                 </div>
               </FormCard>
 
@@ -897,6 +885,55 @@ export default function CheckoutPage() {
 }
 
 // ──────────────── helper components (unchanged) ────────────────
+
+function PaymentOption({
+  selected, onSelect, title, desc, hint,
+}: {
+  selected: boolean
+  onSelect: () => void
+  title:    string
+  desc:     string
+  hint:     string
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={selected}
+      className="w-full text-left rounded-xl px-4 py-3 transition-colors"
+      style={
+        selected
+          ? { backgroundColor: '#e8e6dc', boxShadow: '0 0 0 2px #c96442' }
+          : { backgroundColor: '#faf9f5', boxShadow: '0 0 0 1px #e8e6dc' }
+      }
+    >
+      <div className="flex items-start gap-3">
+        <span
+          className={`flex-shrink-0 mt-1 w-4 h-4 rounded-full border-2 ${
+            selected ? 'border-[#c96442] bg-[#c96442]' : 'border-[#c9c7bd] bg-transparent'
+          }`}
+          style={selected ? { boxShadow: 'inset 0 0 0 3px #faf9f5' } : undefined}
+        />
+        <div className="flex-1">
+          <div className="font-medium text-[#141413] text-[14px] leading-tight">{title}</div>
+          <div className="text-[12px] text-[#87867f] mt-0.5">{desc}</div>
+          {selected && (
+            <div
+              className="mt-3 flex items-start gap-2.5 rounded-lg bg-[#faf9f5] px-3 py-2 text-[12px] text-[#5e5d59]"
+              style={{ boxShadow: '0 0 0 1px #f0eee6' }}
+            >
+              <svg className="w-3.5 h-3.5 text-[#c96442] mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="12" cy="12" r="10" />
+                <path d="M12 8v4M12 16h.01" />
+              </svg>
+              <span>{hint}</span>
+            </div>
+          )}
+        </div>
+      </div>
+    </button>
+  )
+}
 
 function FormCard({ step, title, children }: { step: string; title: string; children: React.ReactNode }) {
   return (
