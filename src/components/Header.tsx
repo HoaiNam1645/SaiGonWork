@@ -46,11 +46,13 @@ export default function Header() {
     : 'text-wood-dark/80 hover:text-wood-dark'
   const mobileIconClass = scrolled ? 'text-parchment' : 'text-wood-dark'
 
+  // Dùng anchor tuyệt đối "/#…" thay vì "#…": từ trang khác (vd /orders/lookup)
+  // vẫn về trang chủ + cuộn tới section; ở trang chủ trình duyệt chỉ scroll (cùng path).
   const navItems = [
-    { href: '#menu', label: t('header.menu') },
-    { href: '#popular', label: t('header.specialties') },
-    { href: '#about', label: t('header.about') },
-    { href: '#contact', label: t('header.contact') },
+    { href: '/#menu', label: t('header.menu') },
+    { href: '/#popular', label: t('header.specialties') },
+    { href: '/#about', label: t('header.about') },
+    { href: '/#contact', label: t('header.contact') },
   ]
 
   const cycleLocale = () => {
