@@ -121,14 +121,14 @@ export default function Header() {
             <ProfileMenu variant={scrolled ? 'dark' : 'light'} />
           ) : (
             <>
-              {/* Anonymous — giữ Cart ở nav như cũ */}
+              {/* Anonymous — Cart: chỉ icon */}
               <button
                 onClick={toggleCart}
                 aria-label={t('header.cart_aria')}
-                className="relative flex items-center gap-2 bg-gold hover:bg-gold-light text-wood-dark font-semibold text-sm px-4 sm:px-5 py-2.5 rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
+                title={t('header.cart')}
+                className="relative inline-flex items-center justify-center w-10 h-10 bg-gold hover:bg-gold-light text-wood-dark rounded-full transition-all duration-200 hover:scale-105 active:scale-95"
               >
-                <ShoppingBagIcon className="w-4 h-4" />
-                <span className="hidden sm:inline">{t('header.cart')}</span>
+                <ShoppingBagIcon className="w-[18px] h-[18px]" />
                 {itemCount > 0 && (
                   <span className="absolute -top-1.5 -right-1.5 bg-amber text-white text-[11px] min-w-[20px] h-5 px-1 rounded-full flex items-center justify-center font-bold ring-2 ring-wood-dark">
                     {itemCount}
@@ -136,21 +136,22 @@ export default function Header() {
                 )}
               </button>
 
-              {/* Track order (guest lookup) — icon only */}
+              {/* Track order (guest lookup) — icon + chữ để khách biết là tra cứu đơn */}
               <Link
                 href="/orders/lookup"
                 aria-label={t('header.track_order')}
                 title={t('header.track_order')}
-                className={`hidden sm:inline-flex items-center justify-center w-9 h-9 rounded-full transition-colors ${
+                className={`hidden sm:inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border transition-colors ${
                   scrolled
-                    ? 'text-parchment/85 hover:text-gold hover:bg-gold/10'
-                    : 'text-wood-dark/85 hover:text-wood-dark hover:bg-wood-dark/[0.06]'
+                    ? 'border-gold/30 text-parchment/80 hover:text-gold hover:border-gold/60'
+                    : 'border-wood-dark/20 text-wood-dark/80 hover:text-wood-dark hover:border-wood-dark/40'
                 }`}
               >
-                <svg className="w-[18px] h-[18px]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                   <circle cx="11" cy="11" r="7" />
                   <path d="M21 21l-4.3-4.3" />
                 </svg>
+                <span className="text-sm font-medium">{t('header.track_order')}</span>
               </Link>
 
               {/* Sign in — icon only */}
