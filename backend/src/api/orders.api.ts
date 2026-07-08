@@ -67,6 +67,9 @@ const createOrderSchema = z.object({
   items:          z.array(itemSchema).min(1),
   payment_method: z.enum(['cash_on_delivery', 'paypal', 'bank_qr_image']),
   bank_tx_id:     z.string().trim().min(1).max(100).optional(),
+  // URL ảnh chứng từ chuyển khoản — FE upload vào /banking/ trước khi tạo order.
+  // Chỉ nhận relative path an toàn dưới /banking/ (chống path/URL injection).
+  bank_proof_url: z.string().trim().regex(/^\/banking\/[A-Za-z0-9._-]+$/, 'validation.invalid_proof_url').max(255).optional(),
   customer_note:  z.string().max(500).optional(),
   scheduled_at:   z.string().datetime().optional(),
   promotion_code: z.string().trim().min(2).max(50).optional(),
@@ -272,6 +275,7 @@ interface OrderRow {
   status:                 string
   paymentMethod:          string
   bankTxId:               string | null
+  paymentProofUrl:        string | null
   customerNote:           string | null
   scheduledAt:            Date | null
   estimatedReadyAt:       Date | null
@@ -305,6 +309,7 @@ function shapeOrder(o: OrderRow, items?: Array<{
     status:               o.status,
     paymentMethod:        o.paymentMethod,
     bankTxId:             o.bankTxId,
+    paymentProofUrl:      o.paymentProofUrl,
     customerNote:         o.customerNote,
     scheduledAt:          o.scheduledAt,
     estimatedReadyAt:     o.estimatedReadyAt,
@@ -585,6 +590,7 @@ export async function create(req: Request, res: Response) {
       status:        order.status,
       paymentMethod: order.paymentMethod,
       bankTxId:      order.bankTxId,
+      paymentProofUrl: order.paymentProofUrl,
       contactName:   order.contactName,
       contactPhone:  order.contactPhone,
       contactEmail:  order.contactEmail,
@@ -700,6 +706,7 @@ async function createOrderTx(input: {
         status:                'pending_payment',
         paymentMethod:         input.body.payment_method,
         bankTxId:              input.body.bank_tx_id ?? null,
+        paymentProofUrl:       input.body.bank_proof_url ?? null,
         customerNote:          input.body.customer_note ?? null,
         estimatedReadyAt:      input.estimatedReadyAt,
         scheduledAt:           input.scheduledAt,

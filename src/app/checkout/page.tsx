@@ -97,8 +97,8 @@ export default function CheckoutPage() {
   const [submitError, setSubmitError] = useState<string | null>(null)
   const [showOtp,     setShowOtp]     = useState(false)
   const [showBank,    setShowBank]    = useState(false)
-  // Mã giao dịch khách nhập trong BankTransferModal — gửi kèm khi tạo order.
-  const [bankTxId,    setBankTxId]    = useState<string | null>(null)
+  // URL ảnh chứng từ CK (upload trong BankTransferModal) — gửi kèm khi tạo order.
+  const [bankProofUrl, setBankProofUrl] = useState<string | null>(null)
 
   // ─── Prefill từ user khi login ───
   useEffect(() => {
@@ -269,7 +269,7 @@ export default function CheckoutPage() {
     !needEmailVerify
 
   // ─── Build payload chung ───
-  function buildOrderBody(bankTxIdArg?: string | null) {
+  function buildOrderBody(bankProofUrlArg?: string | null) {
     const itemsWithIds = items.filter(i => i.dishId)
     if (itemsWithIds.length === 0) {
       throw new Error(t('checkout.error.cart_empty'))
@@ -300,7 +300,7 @@ export default function CheckoutPage() {
         note:     i.note || undefined,
       })),
       payment_method: PAYMENT_API_MAP[payment],
-      bank_tx_id:     (bankTxIdArg ?? bankTxId ?? undefined) || undefined,
+      bank_proof_url: (bankProofUrlArg ?? bankProofUrl ?? undefined) || undefined,
       customer_note:  note.trim() || undefined,
       promotion_code: appliedPromo?.code,
     }
@@ -327,11 +327,11 @@ export default function CheckoutPage() {
     }
   }
 
-  async function submitCustomer(tx?: string | null) {
+  async function submitCustomer(proofUrl?: string | null) {
     setSubmitting(true)
     setSubmitError(null)
     try {
-      const body = buildOrderBody(tx)
+      const body = buildOrderBody(proofUrl)
       const res = await api<CreateOrderResponse>('/orders', {
         method: 'POST',
         body,
@@ -381,9 +381,9 @@ export default function CheckoutPage() {
   function placeOrder() {
     if (!requiredOk) return
     setSubmitError(null)
-    // Payment là bank_qr_image → mở popup QR + nhập mã giao dịch trước.
+    // Payment là bank_qr_image → mở popup QR + upload ảnh chứng từ trước.
     if (payment === 'bank') {
-      setBankTxId(null)
+      setBankProofUrl(null)
       setShowBank(true)
       return
     }
@@ -395,14 +395,15 @@ export default function CheckoutPage() {
     }
   }
 
-  // Gọi từ BankTransferModal khi khách bấm "Xác nhận" sau khi nhập mã giao dịch.
-  function onBankConfirmed(tx: string) {
-    setBankTxId(tx)
+  // Gọi từ BankTransferModal sau khi khách upload ảnh chứng từ + bấm "Xác nhận".
+  // `proofUrl` là URL ảnh (/banking/…) đã upload lên public/banking.
+  function onBankConfirmed(proofUrl: string) {
+    setBankProofUrl(proofUrl)
     setSubmitError(null)
     if (user) {
-      void submitCustomer(tx)
+      void submitCustomer(proofUrl)
     } else {
-      // Guest: đóng bank modal, mở OTP — submitWithGuestToken sẽ đọc bankTxId từ state.
+      // Guest: đóng bank modal, mở OTP — submitWithGuestToken đọc bankProofUrl từ state.
       setShowBank(false)
       setShowOtp(true)
     }
@@ -884,7 +885,7 @@ export default function CheckoutPage() {
         <BankTransferModal
           store={store}
           amount={total}
-          reference={email.trim().toLowerCase() || undefined}
+          transferContent={[phone.trim(), name.trim()].filter(Boolean).join(' - ') || undefined}
           submitting={submitting}
           errorText={submitError}
           onConfirm={onBankConfirmed}

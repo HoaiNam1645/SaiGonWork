@@ -24,6 +24,7 @@ export interface OrderCreatedPayload {
   status:           'pending_payment' | 'paid' | 'preparing' | 'delivering' | 'completed' | 'cancelled'
   paymentMethod:    'cash_on_delivery' | 'paypal' | 'bank_qr_image'
   bankTxId:         string | null
+  paymentProofUrl:  string | null
   contactName:      string
   contactPhone:     string
   contactEmail:     string

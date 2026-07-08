@@ -86,6 +86,7 @@ interface OrderResp {
   status:              OrderStatus
   paymentMethod:       PaymentMethod
   bankTxId:            string | null
+  paymentProofUrl:     string | null
   customerNote:        string | null
   scheduledAt:         string | null
   estimatedReadyAt:    string | null
@@ -370,6 +371,25 @@ export default function AdminOrderDetailPage() {
               <Row label={t('admin.detail.method')} value={paymentLabel(order.paymentMethod)} />
               {order.bankTxId && (
                 <Row label={t('admin.detail.bank_tx_id')} value={order.bankTxId} mono />
+              )}
+              {order.paymentProofUrl && (
+                <div className="pt-1">
+                  <div className="text-xs font-medium text-gray-500 mb-1.5">{t('admin.detail.payment_proof')}</div>
+                  <a
+                    href={order.paymentProofUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block rounded-lg border border-gray-200 overflow-hidden hover:border-brand-300 transition-colors max-w-[220px]"
+                    title={t('admin.detail.payment_proof_open')}
+                  >
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      src={order.paymentProofUrl}
+                      alt="payment proof"
+                      className="w-full h-auto max-h-[260px] object-contain bg-gray-50"
+                    />
+                  </a>
+                </div>
               )}
               <Row
                 label={t('admin.detail.placed_at')}

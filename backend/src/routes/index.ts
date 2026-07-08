@@ -14,6 +14,7 @@ import { notificationsRouter } from './notifications'
 import { adminCustomersRouter } from './admin.customers'
 import { adminStaffRouter } from './admin.staff'
 import { adminPromotionsRouter } from './admin.promotions'
+import { adminSettingsRouter } from './admin.settings'
 import { adminPermissionsRouter } from './admin.permissions'
 import { adminRolesRouter, adminUserRolesRouter } from './admin.roles'
 import {
@@ -45,6 +46,7 @@ apiRouter.use('/admin/dishes',     adminDishesRouter)
 apiRouter.use('/admin/options',    adminOptionsRouter)
 apiRouter.use('/admin/values',     adminValuesRouter)
 apiRouter.use('/admin/promotions', adminPromotionsRouter)
+apiRouter.use('/admin/store',      adminSettingsRouter)
 apiRouter.use('/admin/permissions', adminPermissionsRouter)
 apiRouter.use('/admin/roles',       adminRolesRouter)
 apiRouter.use('/admin/users',       adminUserRolesRouter)

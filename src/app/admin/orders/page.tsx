@@ -76,6 +76,7 @@ interface OrderRow {
   status:         OrderStatus
   paymentMethod:  PaymentMethod
   bankTxId:       string | null
+  paymentProofUrl: string | null
   itemCount:      number
   items:          OrderItemLite[]
   distanceKm:     number | null
@@ -99,6 +100,7 @@ interface RestOrder {
   status:           OrderStatus
   paymentMethod:    PaymentMethod
   bankTxId:         string | null
+  paymentProofUrl:  string | null
   distanceKm:       number | null
   createdAt:        string
   customerNote:     string | null
@@ -253,6 +255,7 @@ export default function AdminOrdersPage() {
   // Modals state
   const [editing,        setEditing]        = useState<OrderRow | null>(null)
   const [cancelling,     setCancelling]     = useState<OrderRow | null>(null)
+  const [proofPreview,   setProofPreview]   = useState<string | null>(null)  // ảnh chứng từ CK phóng to
 
   // Alerts (5 loại): pending_payment quá hạn, paid chưa preparing, preparing/delivering quá lâu, scheduled sắp tới
   const [alerts,     setAlerts]     = useState<OrderAlert[] | null>(null)
@@ -358,6 +361,7 @@ export default function AdminOrdersPage() {
         status:        p.status,
         paymentMethod: p.paymentMethod,
         bankTxId:      p.bankTxId,
+        paymentProofUrl: p.paymentProofUrl,
         itemCount:     p.itemCount,
         items:         p.items.map(i => ({
           id:           i.id,
@@ -537,6 +541,7 @@ export default function AdminOrdersPage() {
                           onView={() => router.push(`/admin/orders/${encodeURIComponent(o.code)}`)}
                           onEdit={() => setEditing(o)}
                           onCancel={() => setCancelling(o)}
+                          onViewProof={(url) => setProofPreview(url)}
                         />
                       ))}
                     </TableBody>
@@ -563,6 +568,9 @@ export default function AdminOrdersPage() {
           onClose={() => setCancelling(null)}
           onConfirmed={(o) => { replaceRow(o); setCancelling(null) }}
         />
+      )}
+      {proofPreview && (
+        <ProofPreviewModal url={proofPreview} t={t} onClose={() => setProofPreview(null)} />
       )}
       {showAlerts && alerts && alerts.length > 0 && (
         <AlertsModal
@@ -769,9 +777,10 @@ interface RowProps {
   onView:           () => void
   onEdit:           () => void
   onCancel:         () => void
+  onViewProof:      (url: string) => void
 }
 
-function OrderTableRow({ order, now, role, t, locale, onPickTransition, onView, onEdit, onCancel }: RowProps) {
+function OrderTableRow({ order, now, role, t, locale, onPickTransition, onView, onEdit, onCancel, onViewProof }: RowProps) {
   const flashing   = !!order.flashUntil && order.flashUntil > now
   const badgeClass = STATUS_BADGE[order.status]
   const created    = new Date(order.createdAt)
@@ -827,6 +836,27 @@ function OrderTableRow({ order, now, role, t, locale, onPickTransition, onView, 
           >
             #{order.bankTxId}
           </div>
+        )}
+        {order.paymentProofUrl && (
+          <button
+            type="button"
+            onClick={() => onViewProof(order.paymentProofUrl!)}
+            title={t('admin.orders.view_proof')}
+            className="group relative mt-1.5 block w-12 h-12 rounded-md overflow-hidden border border-gray-200 bg-gray-50 hover:border-brand-400 transition-colors"
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img
+              src={order.paymentProofUrl}
+              alt="proof"
+              className="w-full h-full object-cover"
+            />
+            <span className="absolute inset-0 flex items-center justify-center bg-black/0 group-hover:bg-black/35 transition-colors">
+              <svg className="w-4 h-4 text-white opacity-0 group-hover:opacity-100 transition-opacity" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+            </span>
+          </button>
         )}
       </TableCell>
 
@@ -1107,6 +1137,59 @@ function CancelOrderModal({
 }
 
 // =====================================================================
+// ProofPreviewModal — lightbox ảnh chứng từ chuyển khoản
+// =====================================================================
+
+function ProofPreviewModal({
+  url, t, onClose,
+}: { url: string; t: (k: string) => string; onClose: () => void }) {
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === 'Escape') onClose() }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/70"
+      onClick={onClose}
+    >
+      <div className="relative max-w-3xl max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center justify-between gap-3 mb-2">
+          <span className="text-sm font-medium text-white/90">{t('admin.detail.payment_proof')}</span>
+          <div className="flex items-center gap-2">
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs font-medium px-3 py-1.5 rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
+            >
+              {t('admin.orders.proof_open_tab')}
+            </a>
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Close"
+              className="w-8 h-8 inline-flex items-center justify-center rounded-lg bg-white/10 text-white hover:bg-white/20 transition-colors"
+            >
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={url}
+          alt="payment proof"
+          className="rounded-lg max-w-full max-h-[80vh] object-contain bg-white"
+        />
+      </div>
+    </div>
+  )
+}
+
+// =====================================================================
 // Small UI helpers
 // =====================================================================
 
@@ -1278,6 +1361,7 @@ function restToRow(o: RestOrder): OrderRow {
     status:        o.status,
     paymentMethod: o.paymentMethod,
     bankTxId:      o.bankTxId,
+    paymentProofUrl: o.paymentProofUrl,
     itemCount:     o.items.reduce((s, i) => s + i.quantity, 0),
     items:         o.items,
     distanceKm:    o.distanceKm,

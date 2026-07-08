@@ -349,6 +349,7 @@ model Order {
   paymentMethod          PaymentMethod @map("payment_method")
   paymentReference       String?       @map("payment_reference") @db.VarChar(100)
   bankTxId               String?       @map("bank_tx_id") @db.VarChar(100)
+  paymentProofUrl        String?       @map("payment_proof_url") @db.VarChar(255)
   paidAt                 DateTime?     @map("paid_at")
   paidConfirmedBy        BigInt?       @map("paid_confirmed_by")
 

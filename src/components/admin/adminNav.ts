@@ -5,6 +5,7 @@ import {
   IconTag,
   IconUsers,
   IconShield,
+  IconSettings,
 } from './AdminIcons'
 
 export interface AdminNavLeaf {
@@ -78,5 +79,11 @@ export const ADMIN_NAV: AdminNavGroup[] = [
       },
     ],
   },
-  // TODO: thêm lại group `admin.nav.config` (settings/reports/audit) khi các trang xong.
+  {
+    labelKey: 'admin.nav.config',
+    items: [
+      { labelKey: 'admin.nav.settings', icon: IconSettings, href: '/admin/settings' },
+    ],
+  },
+  // TODO: thêm reports/audit vào group `admin.nav.config` khi các trang xong.
 ]
