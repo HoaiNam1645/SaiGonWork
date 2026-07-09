@@ -19,6 +19,7 @@ import { api, ApiError } from '@/lib/api'
 import { saveOrderToken } from '@/lib/guestToken'
 import { saveLookupSession } from '@/lib/lookupToken'
 import { useStoreSettings } from '@/lib/storeApi'
+import { computeStoreStatus } from '@/lib/storeStatus'
 import {
   computeShipping,
   fetchRoute,
@@ -259,6 +260,17 @@ export default function CheckoutPage() {
   // Customer login phải verify email mới đặt được đơn (khớp luồng guest).
   const needEmailVerify = !!user && !user.emailVerifiedAt
 
+  // Trạng thái nhận đơn (công tắc isOpen + giờ mở cửa, theo Berlin). Tick mỗi 60s
+  // để tự khoá/mở khi qua giờ đóng/mở dù khách đang ở lại trang. BE enforce lại lúc submit.
+  const [nowTick, setNowTick] = useState(() => Date.now())
+  useEffect(() => {
+    const id = window.setInterval(() => setNowTick(Date.now()), 60_000)
+    return () => window.clearInterval(id)
+  }, [])
+  const storeStatus = store
+    ? computeStoreStatus(store.isOpen, store.openHours, new Date(nowTick))
+    : { acceptingOrders: true, closedReason: null }
+
   const requiredOk =
     name.trim().length > 0 &&
     phone.trim().length > 0 &&
@@ -267,7 +279,8 @@ export default function CheckoutPage() {
     locationOk &&
     !outOfZone &&
     items.length > 0 &&
-    !needEmailVerify
+    !needEmailVerify &&
+    storeStatus.acceptingOrders
 
   // ─── Build payload chung ───
   function buildOrderBody(bankProofUrlArg?: string | null) {
@@ -822,6 +835,28 @@ export default function CheckoutPage() {
                   style={{ backgroundColor: '#fef3f2', boxShadow: '0 0 0 1px #f4cdca', color: '#b53333' }}
                 >
                   {submitError}
+                </div>
+              )}
+
+              {!storeStatus.acceptingOrders && (
+                <div
+                  className="mt-4 rounded-xl px-3.5 py-3 text-[13px]"
+                  style={{ backgroundColor: '#fef3f2', boxShadow: '0 0 0 1px #f4cdca', color: '#b53333' }}
+                >
+                  <div className="flex items-start gap-2.5">
+                    <svg className="w-4 h-4 mt-0.5 flex-shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" />
+                      <path d="M12 8v4M12 16h.01" />
+                    </svg>
+                    <div>
+                      <div className="font-medium mb-0.5">{t('store.closed.title')}</div>
+                      <div className="text-[12px] leading-relaxed">
+                        {store?.closedMessage?.trim()
+                          ? store.closedMessage
+                          : t(storeStatus.closedReason === 'off_hours' ? 'store.closed.off_hours' : 'store.closed.manual')}
+                      </div>
+                    </div>
+                  </div>
                 </div>
               )}
 

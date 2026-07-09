@@ -5,6 +5,8 @@ import Image from 'next/image'
 import Link from 'next/link'
 import { useCart } from '@/context/CartContext'
 import { useI18n } from '@/i18n/I18nContext'
+import { useStoreSettings } from '@/lib/storeApi'
+import { computeStoreStatus } from '@/lib/storeStatus'
 import type { CartItem } from '@/types'
 import { XIcon, PlusIcon, MinusIcon, TrashIcon, ShoppingBagIcon, ArrowRightIcon } from './Icons'
 
@@ -58,6 +60,10 @@ function NoteInput({
 export default function CartDrawer() {
   const { items, isOpen, total, closeCart, removeItem, updateQuantity, updateNote, clearCart } = useCart()
   const { t } = useI18n()
+  const { store } = useStoreSettings()
+  const status = store
+    ? computeStoreStatus(store.isOpen, store.openHours)
+    : { acceptingOrders: true, closedReason: null }
 
   return (
     <>
@@ -202,14 +208,34 @@ export default function CartDrawer() {
                 {total.toFixed(2).replace('.', ',')} €
               </span>
             </div>
-            <Link
-              href="/checkout"
-              onClick={closeCart}
-              className="w-full bg-wood-dark hover:bg-wood text-gold font-bold py-4 rounded-xl text-base transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-lg flex items-center justify-center gap-2"
-            >
-              <span>{t('cart.checkout')}</span>
-              <ArrowRightIcon className="w-4 h-4" />
-            </Link>
+            {status.acceptingOrders ? (
+              <Link
+                href="/checkout"
+                onClick={closeCart}
+                className="w-full bg-wood-dark hover:bg-wood text-gold font-bold py-4 rounded-xl text-base transition-all duration-200 hover:scale-[1.02] active:scale-95 shadow-lg flex items-center justify-center gap-2"
+              >
+                <span>{t('cart.checkout')}</span>
+                <ArrowRightIcon className="w-4 h-4" />
+              </Link>
+            ) : (
+              <>
+                <div className="mb-3 rounded-xl bg-amber/10 border border-amber/30 px-3.5 py-3 text-[13px] text-wood-dark/80">
+                  <div className="font-semibold text-amber mb-0.5">{t('store.closed.title')}</div>
+                  <div className="text-[12px] leading-relaxed">
+                    {store?.closedMessage?.trim()
+                      ? store.closedMessage
+                      : t(status.closedReason === 'off_hours' ? 'store.closed.off_hours' : 'store.closed.manual')}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  disabled
+                  className="w-full bg-wood-dark/40 text-parchment/70 font-bold py-4 rounded-xl text-base cursor-not-allowed flex items-center justify-center gap-2"
+                >
+                  <span>{t('cart.checkout')}</span>
+                </button>
+              </>
+            )}
           </div>
         )}
       </aside>

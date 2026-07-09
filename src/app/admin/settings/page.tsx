@@ -7,6 +7,7 @@ import { useI18n } from '@/i18n/I18nContext'
 import type { TKey } from '@/i18n/dictionary'
 import { api, ApiError } from '@/lib/api'
 import { invalidateStoreCache } from '@/lib/storeApi'
+import { computeStoreStatus } from '@/lib/storeStatus'
 import { useAuth } from '@/context/AuthContext'
 
 // =====================================================================
@@ -301,7 +302,10 @@ export default function AdminSettingsPage() {
 
           {/* ---- Opening hours ---- */}
           <Section title={t('admin.settings.section.hours')} desc={t('admin.settings.section.hours_desc')}>
-            <label className="flex items-center gap-2 cursor-pointer mb-4">
+            {/* Trạng thái nhận đơn hiệu lực (công tắc + giờ mở cửa, theo Berlin) */}
+            <StoreStatusBadge form={form} t={t} />
+
+            <label className="flex items-center gap-2 cursor-pointer mb-1.5">
               <input
                 type="checkbox"
                 checked={form.isOpen}
@@ -309,8 +313,8 @@ export default function AdminSettingsPage() {
                 className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
               />
               <span className="text-sm text-gray-700">{t('admin.settings.field.is_open')}</span>
-              <span className="text-xs text-gray-400">{t('admin.settings.field.is_open_hint')}</span>
             </label>
+            <p className="text-xs text-gray-400 mb-4 ml-6">{t('admin.settings.field.is_open_hint')}</p>
 
             {!form.isOpen && (
               <div className="mb-4">
@@ -426,6 +430,27 @@ export default function AdminSettingsPage() {
         </div>
       )}
     </>
+  )
+}
+
+// Badge trạng thái nhận đơn hiệu lực — tính từ form hiện tại (isOpen + giờ mở cửa).
+function StoreStatusBadge({ form, t }: { form: FormState; t: (k: TKey) => string }) {
+  const oh: Record<string, [string, string] | null> = {}
+  for (const d of DAYS) {
+    const day = form.openHours[d]
+    oh[d] = day.closed ? null : [day.open, day.close]
+  }
+  const st = computeStoreStatus(form.isOpen, oh)
+  const cfg = st.acceptingOrders
+    ? { dot: 'bg-success-500', text: 'text-success-700', bg: 'bg-success-50 border-success-200', label: t('admin.settings.status.accepting') }
+    : st.closedReason === 'manual'
+      ? { dot: 'bg-error-500',   text: 'text-error-700',   bg: 'bg-error-50 border-error-200',     label: t('admin.settings.status.manual') }
+      : { dot: 'bg-warning-500', text: 'text-warning-700', bg: 'bg-warning-50 border-warning-200', label: t('admin.settings.status.off_hours') }
+  return (
+    <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 mb-4 ${cfg.bg}`}>
+      <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+      <span className={`text-xs font-medium ${cfg.text}`}>{cfg.label}</span>
+    </div>
   )
 }
 

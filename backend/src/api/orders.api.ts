@@ -22,6 +22,7 @@ import { env } from '@/config/env'
 import { type Locale } from '@/i18n'
 import { logAuditAsync } from '@/lib/auditLog'
 import { clientIp } from '@/lib/request'
+import { computeStoreStatus } from '@/lib/storeStatus'
 
 // =====================================================================
 // Schemas
@@ -435,7 +436,11 @@ export async function create(req: Request, res: Response) {
   // 3) Load store settings (origin + công thức ship)
   const store = await prisma.storeSettings.findUnique({ where: { id: 1 } })
   if (!store)             throw BadRequest('order.store_unconfigured', 'STORE_UNCONFIGURED')
-  if (!store.isOpen)      throw Forbidden('order.store_closed', 'STORE_CLOSED')
+  // Chặn đơn khi cửa hàng không nhận đơn: khoá thủ công (isOpen=false) HOẶC
+  // ngoài giờ mở cửa (theo Europe/Berlin).
+  if (!computeStoreStatus(store.isOpen, store.openHoursJson).acceptingOrders) {
+    throw Forbidden('order.store_closed', 'STORE_CLOSED')
+  }
   if (!store.lat || !store.lng) throw BadRequest('order.store_no_origin', 'STORE_NO_ORIGIN')
 
   // 4) Routing OSRM (server-side) — distance/duration thật

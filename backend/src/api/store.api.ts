@@ -2,6 +2,7 @@ import type { Request, Response } from 'express'
 import type { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
 import { NotFound } from '@/lib/errors'
+import { computeStoreStatus } from '@/lib/storeStatus'
 
 function num(v: Prisma.Decimal | null | undefined): number | null {
   if (v == null) return null
@@ -12,6 +13,8 @@ export async function info(_req: Request, res: Response) {
   const s = await prisma.storeSettings.findUnique({ where: { id: 1 } })
   if (!s) throw NotFound('common.not_found')
 
+  const status = computeStoreStatus(s.isOpen, s.openHoursJson)
+
   res.json({
     name:    s.name,
     hotline: s.hotline,
@@ -19,9 +22,13 @@ export async function info(_req: Request, res: Response) {
     address: s.address,
     lat:     num(s.lat),
     lng:     num(s.lng),
-    openHours:     s.openHoursJson,
-    isOpen:        s.isOpen,
-    closedMessage: s.closedMessage,
+    openHours:       s.openHoursJson,
+    isOpen:          s.isOpen,
+    closedMessage:   s.closedMessage,
+    // Trạng thái nhận đơn hiệu lực (isOpen + giờ mở cửa). FE cũng tự tính lại
+    // theo thời gian thực để không bị stale do cache.
+    acceptingOrders: status.acceptingOrders,
+    closedReason:    status.closedReason,
     delivery: {
       radiusKm:           num(s.deliveryRadiusKm),
       baseFee:            num(s.deliveryBaseFee),
