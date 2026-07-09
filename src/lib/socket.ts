@@ -73,14 +73,19 @@ export interface NotificationPayload {
 const SOCKET_URL = (() => {
   const direct = process.env.NEXT_PUBLIC_SOCKET_URL
   if (direct) return direct
-  const derived = process.env.NEXT_PUBLIC_API_URL?.replace(/\/api\/?$/, '')
-  if (derived) return derived
-  if (process.env.NODE_ENV === 'production') {
-    throw new Error(
-      '[socket] NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL is required for production build.',
-    )
+  const api = process.env.NEXT_PUBLIC_API_URL
+  if (api === undefined) {
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error(
+        '[socket] NEXT_PUBLIC_SOCKET_URL or NEXT_PUBLIC_API_URL is required for production build.',
+      )
+    }
+    return 'http://localhost:4000'
   }
-  return 'http://localhost:4000'
+  // Bỏ đuôi "/api" để lấy host của backend. Nếu API base là tương đối ("/api")
+  // thì kết quả rỗng → socket connect same-origin (io(undefined)), chạy trên
+  // mọi domain mà không cần biết host — xem call site dùng `SOCKET_URL || undefined`.
+  return api.replace(/\/api\/?$/, '')
 })()
 
 let _socket: Socket | null = null
@@ -88,7 +93,9 @@ let _socket: Socket | null = null
 export function getSocket(guestToken?: string): Socket {
   // Đã tồn tại → reuse (1 connection per tab)
   if (_socket?.connected || _socket?.active) return _socket
-  _socket = ioClient(SOCKET_URL, {
+  // SOCKET_URL rỗng (API base tương đối) → truyền undefined để socket.io connect
+  // same-origin (host đang phục vụ trang).
+  _socket = ioClient(SOCKET_URL || undefined, {
     withCredentials: true,
     auth: guestToken ? { guestToken } : {},
     autoConnect: true,
