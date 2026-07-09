@@ -312,9 +312,14 @@ export default function AdminSettingsPage() {
                 onChange={e => setField('isOpen', e.target.checked)}
                 className="w-4 h-4 rounded border-gray-300 text-brand-500 focus:ring-brand-500"
               />
-              <span className="text-sm text-gray-700">{t('admin.settings.field.is_open')}</span>
+              <span className="text-sm font-medium text-gray-700">{t('admin.settings.field.accept_orders')}</span>
             </label>
-            <p className="text-xs text-gray-400 mb-4 ml-6">{t('admin.settings.field.is_open_hint')}</p>
+            {/* Mô tả đổi theo trạng thái công tắc — nói đúng việc sẽ xảy ra */}
+            <p className={`text-xs mb-4 ml-6 leading-relaxed ${form.isOpen ? 'text-gray-500' : 'text-error-600'}`}>
+              {form.isOpen
+                ? t('admin.settings.field.accept_on_desc')
+                : t('admin.settings.field.accept_off_desc')}
+            </p>
 
             {!form.isOpen && (
               <div className="mb-4">
@@ -433,7 +438,8 @@ export default function AdminSettingsPage() {
   )
 }
 
-// Badge trạng thái nhận đơn hiệu lực — tính từ form hiện tại (isOpen + giờ mở cửa).
+// Badge trạng thái nhận đơn HIỆU LỰC (kết quả cuối) — tính từ form (isOpen + giờ mở cửa).
+// Kèm tiêu đề "Trạng thái hiện tại" + dòng giải thích lý do để admin hiểu ngay.
 function StoreStatusBadge({ form, t }: { form: FormState; t: (k: TKey) => string }) {
   const oh: Record<string, [string, string] | null> = {}
   for (const d of DAYS) {
@@ -442,14 +448,20 @@ function StoreStatusBadge({ form, t }: { form: FormState; t: (k: TKey) => string
   }
   const st = computeStoreStatus(form.isOpen, oh)
   const cfg = st.acceptingOrders
-    ? { dot: 'bg-success-500', text: 'text-success-700', bg: 'bg-success-50 border-success-200', label: t('admin.settings.status.accepting') }
+    ? { dot: 'bg-success-500', text: 'text-success-700', bg: 'bg-success-50 border-success-200', label: t('admin.settings.status.accepting'), sub: t('admin.settings.status.accepting_sub') }
     : st.closedReason === 'manual'
-      ? { dot: 'bg-error-500',   text: 'text-error-700',   bg: 'bg-error-50 border-error-200',     label: t('admin.settings.status.manual') }
-      : { dot: 'bg-warning-500', text: 'text-warning-700', bg: 'bg-warning-50 border-warning-200', label: t('admin.settings.status.off_hours') }
+      ? { dot: 'bg-error-500',   text: 'text-error-700',   bg: 'bg-error-50 border-error-200',     label: t('admin.settings.status.manual'),   sub: t('admin.settings.status.manual_sub') }
+      : { dot: 'bg-warning-500', text: 'text-warning-700', bg: 'bg-warning-50 border-warning-200', label: t('admin.settings.status.off_hours'), sub: t('admin.settings.status.off_hours_sub') }
   return (
-    <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 mb-4 ${cfg.bg}`}>
-      <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
-      <span className={`text-xs font-medium ${cfg.text}`}>{cfg.label}</span>
+    <div className="mb-5">
+      <div className="text-[11px] font-medium uppercase tracking-wide text-gray-400 mb-1.5">
+        {t('admin.settings.status.label')}
+      </div>
+      <div className={`inline-flex items-center gap-2 rounded-lg border px-3 py-1.5 ${cfg.bg}`}>
+        <span className={`w-2 h-2 rounded-full ${cfg.dot}`} />
+        <span className={`text-xs font-semibold ${cfg.text}`}>{cfg.label}</span>
+      </div>
+      <p className="text-xs text-gray-500 mt-1.5">{cfg.sub}</p>
     </div>
   )
 }
