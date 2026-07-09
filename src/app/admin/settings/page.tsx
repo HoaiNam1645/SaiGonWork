@@ -29,12 +29,15 @@ interface StoreSettings {
   currency:      string
   openHours:     Record<Day, [string, string] | null>
   delivery: {
-    radiusKm:           number | null
-    baseFee:            number | null
-    perKm:              number | null
-    freeShipThreshold:  number | null
-    kitchenPrepMinutes: number
-    routingProvider:    string
+    radiusKm:             number | null
+    baseFee:              number | null
+    perKm:                number | null
+    freeShipThreshold:    number | null
+    freeDeliveryRadiusKm: number | null
+    feeMode:              'per_km' | 'flat'
+    flatFee:              number | null
+    kitchenPrepMinutes:   number
+    routingProvider:      string
   }
   payment: {
     paypalEmail:     string | null
@@ -60,11 +63,14 @@ interface FormState {
   currency:      string
   openHours:     Record<Day, DayForm>
   delivery: {
-    radiusKm:           string
-    baseFee:            string
-    perKm:              string
-    freeShipThreshold:  string
-    kitchenPrepMinutes: string
+    radiusKm:             string
+    baseFee:              string
+    perKm:                string
+    freeShipThreshold:    string
+    freeDeliveryRadiusKm: string
+    feeMode:              string   // 'per_km' | 'flat' — string để hợp setDelivery
+    flatFee:              string
+    kitchenPrepMinutes:   string
   }
   payment: {
     paypalEmail:     string
@@ -97,11 +103,14 @@ function toForm(s: StoreSettings): FormState {
     currency:      s.currency ?? 'EUR',
     openHours:     oh,
     delivery: {
-      radiusKm:           numStr(s.delivery.radiusKm),
-      baseFee:            numStr(s.delivery.baseFee),
-      perKm:              numStr(s.delivery.perKm),
-      freeShipThreshold:  numStr(s.delivery.freeShipThreshold),
-      kitchenPrepMinutes: String(s.delivery.kitchenPrepMinutes),
+      radiusKm:             numStr(s.delivery.radiusKm),
+      baseFee:              numStr(s.delivery.baseFee),
+      perKm:                numStr(s.delivery.perKm),
+      freeShipThreshold:    numStr(s.delivery.freeShipThreshold),
+      freeDeliveryRadiusKm: numStr(s.delivery.freeDeliveryRadiusKm),
+      feeMode:              s.delivery.feeMode === 'flat' ? 'flat' : 'per_km',
+      flatFee:              numStr(s.delivery.flatFee),
+      kitchenPrepMinutes:   String(s.delivery.kitchenPrepMinutes),
     },
     payment: {
       paypalEmail:     s.payment.paypalEmail ?? '',
@@ -134,11 +143,14 @@ function toPayload(f: FormState) {
     currency:      f.currency.trim().toUpperCase(),
     openHours,
     delivery: {
-      radiusKm:           Number(f.delivery.radiusKm || 0),
-      baseFee:            Number(f.delivery.baseFee || 0),
-      perKm:              Number(f.delivery.perKm || 0),
-      freeShipThreshold:  nnum(f.delivery.freeShipThreshold),
-      kitchenPrepMinutes: parseInt(f.delivery.kitchenPrepMinutes || '0', 10),
+      radiusKm:             Number(f.delivery.radiusKm || 0),
+      baseFee:              Number(f.delivery.baseFee || 0),
+      perKm:                Number(f.delivery.perKm || 0),
+      freeShipThreshold:    nnum(f.delivery.freeShipThreshold),
+      freeDeliveryRadiusKm: Number(f.delivery.freeDeliveryRadiusKm || 0),
+      feeMode:              f.delivery.feeMode,
+      flatFee:              Number(f.delivery.flatFee || 0),
+      kitchenPrepMinutes:   parseInt(f.delivery.kitchenPrepMinutes || '0', 10),
     },
     payment: {
       paypalEmail:     s(f.payment.paypalEmail),
@@ -375,14 +387,11 @@ export default function AdminSettingsPage() {
           {/* ---- Delivery ---- */}
           <Section title={t('admin.settings.section.delivery')} desc={t('admin.settings.section.delivery_desc')}>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Field label={t('admin.settings.field.radius_km')} suffix="km">
+              <Field label={t('admin.settings.field.radius_km')} suffix="km" hint={t('admin.settings.field.radius_hint')}>
                 <Input value={form.delivery.radiusKm} onChange={v => setDelivery('radiusKm', v)} type="number" step="0.5" min={0} />
               </Field>
-              <Field label={t('admin.settings.field.per_km')} suffix="€/km">
-                <Input value={form.delivery.perKm} onChange={v => setDelivery('perKm', v)} type="number" step="0.01" min={0} />
-              </Field>
-              <Field label={t('admin.settings.field.base_fee')} suffix="€">
-                <Input value={form.delivery.baseFee} onChange={v => setDelivery('baseFee', v)} type="number" step="0.01" min={0} />
+              <Field label={t('admin.settings.field.free_radius_km')} suffix="km" hint={t('admin.settings.field.free_radius_hint')}>
+                <Input value={form.delivery.freeDeliveryRadiusKm} onChange={v => setDelivery('freeDeliveryRadiusKm', v)} type="number" step="0.5" min={0} placeholder="0" />
               </Field>
               <Field label={t('admin.settings.field.free_ship_threshold')} suffix="€" hint={t('admin.settings.field.free_ship_hint')}>
                 <Input value={form.delivery.freeShipThreshold} onChange={v => setDelivery('freeShipThreshold', v)} type="number" step="0.01" min={0} placeholder="—" />
@@ -390,8 +399,51 @@ export default function AdminSettingsPage() {
               <Field label={t('admin.settings.field.kitchen_prep')} suffix="min">
                 <Input value={form.delivery.kitchenPrepMinutes} onChange={v => setDelivery('kitchenPrepMinutes', v)} type="number" step="1" min={0} />
               </Field>
+            </div>
+
+            {/* Cách tính phí (trên bán kính free) */}
+            <div className="mt-4 pt-4 border-t border-gray-100">
+              <Field label={t('admin.settings.field.fee_mode')} hint={t('admin.settings.field.fee_mode_hint')}>
+                <div className="inline-flex rounded-lg bg-gray-100 p-1">
+                  {(['per_km', 'flat'] as const).map(m => {
+                    const active = form.delivery.feeMode === m
+                    return (
+                      <button
+                        key={m}
+                        type="button"
+                        onClick={() => setDelivery('feeMode', m)}
+                        className={`px-4 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                          active ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-600 hover:text-gray-900'
+                        }`}
+                      >
+                        {t(m === 'flat' ? 'admin.settings.field.fee_mode_flat' : 'admin.settings.field.fee_mode_per_km')}
+                      </button>
+                    )
+                  })}
+                </div>
+              </Field>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4">
+                {form.delivery.feeMode === 'flat' ? (
+                  <Field label={t('admin.settings.field.flat_fee')} suffix="€" hint={t('admin.settings.field.flat_fee_hint')}>
+                    <Input value={form.delivery.flatFee} onChange={v => setDelivery('flatFee', v)} type="number" step="0.01" min={0} />
+                  </Field>
+                ) : (
+                  <>
+                    <Field label={t('admin.settings.field.per_km')} suffix="€/km">
+                      <Input value={form.delivery.perKm} onChange={v => setDelivery('perKm', v)} type="number" step="0.01" min={0} />
+                    </Field>
+                    <Field label={t('admin.settings.field.base_fee')} suffix="€">
+                      <Input value={form.delivery.baseFee} onChange={v => setDelivery('baseFee', v)} type="number" step="0.01" min={0} />
+                    </Field>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-gray-100">
               <Field label={t('admin.settings.field.routing_provider')}>
-                <div className="px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-500 uppercase">{routing}</div>
+                <div className="px-3 py-2 rounded-lg border border-gray-100 bg-gray-50 text-sm text-gray-500 uppercase w-fit min-w-[8rem]">{routing}</div>
               </Field>
             </div>
           </Section>

@@ -30,11 +30,14 @@ export async function info(_req: Request, res: Response) {
     acceptingOrders: status.acceptingOrders,
     closedReason:    status.closedReason,
     delivery: {
-      radiusKm:           num(s.deliveryRadiusKm),
-      baseFee:            num(s.deliveryBaseFee),
-      perKm:              num(s.deliveryPerKm),
-      freeShipThreshold:  num(s.freeShipThreshold),
-      kitchenPrepMinutes: s.kitchenPrepMinutes,
+      radiusKm:             num(s.deliveryRadiusKm),
+      baseFee:              num(s.deliveryBaseFee),
+      perKm:                num(s.deliveryPerKm),
+      freeShipThreshold:    num(s.freeShipThreshold),
+      freeDeliveryRadiusKm: num(s.freeDeliveryRadiusKm),
+      feeMode:              s.deliveryFeeMode === 'flat' ? 'flat' : 'per_km',
+      flatFee:              num(s.deliveryFlatFee),
+      kitchenPrepMinutes:   s.kitchenPrepMinutes,
     },
     payment: {
       methods: [

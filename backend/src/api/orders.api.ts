@@ -453,12 +453,15 @@ export async function create(req: Request, res: Response) {
   // 5) Subtotal + delivery fee (recompute từ DB, KHÔNG tin FE)
   const subtotal = computeSubtotal(priced)
   const ship = computeDeliveryFee({
-    distanceKm:        route.distanceKm,
+    distanceKm:           route.distanceKm,
     subtotal,
-    deliveryBaseFee:   dec(store.deliveryBaseFee),
-    deliveryPerKm:     dec(store.deliveryPerKm),
-    freeShipThreshold: store.freeShipThreshold ? dec(store.freeShipThreshold) : null,
-    radiusKm:          dec(store.deliveryRadiusKm),
+    deliveryBaseFee:      dec(store.deliveryBaseFee),
+    deliveryPerKm:        dec(store.deliveryPerKm),
+    freeShipThreshold:    store.freeShipThreshold ? dec(store.freeShipThreshold) : null,
+    radiusKm:             dec(store.deliveryRadiusKm),
+    freeDeliveryRadiusKm: dec(store.freeDeliveryRadiusKm),
+    deliveryFeeMode:      store.deliveryFeeMode === 'flat' ? 'flat' : 'per_km',
+    deliveryFlatFee:      dec(store.deliveryFlatFee),
   }, store.routingProvider)
 
   if (ship.outOfZone) {

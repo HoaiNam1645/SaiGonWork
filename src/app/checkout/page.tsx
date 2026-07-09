@@ -123,9 +123,12 @@ export default function CheckoutPage() {
   // Cấu hình tính ship — bắt nguồn từ store_settings (BE), KHÔNG hardcode.
   const shippingConfig: ShippingConfig | null = store
     ? {
-        perKm:             store.delivery.perKm             ?? 0,
-        freeShipThreshold: store.delivery.freeShipThreshold ?? null,
-        baseFee:           store.delivery.baseFee           ?? 0,
+        perKm:                store.delivery.perKm                ?? 0,
+        freeShipThreshold:    store.delivery.freeShipThreshold    ?? null,
+        baseFee:              store.delivery.baseFee              ?? 0,
+        freeDeliveryRadiusKm: store.delivery.freeDeliveryRadiusKm ?? 0,
+        feeMode:              store.delivery.feeMode              ?? 'per_km',
+        flatFee:              store.delivery.flatFee              ?? 0,
       }
     : null
   const maxRadiusKm   = store?.delivery.radiusKm           ?? null
@@ -138,15 +141,16 @@ export default function CheckoutPage() {
     // shippingConfig là object mới mỗi render — depend vào primitives bên trong
     // để không trigger re-compute liên tục.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [km, subtotal, shippingConfig?.perKm, shippingConfig?.freeShipThreshold, shippingConfig?.baseFee],
+    [km, subtotal, shippingConfig?.perKm, shippingConfig?.freeShipThreshold, shippingConfig?.baseFee, shippingConfig?.freeDeliveryRadiusKm, shippingConfig?.feeMode, shippingConfig?.flatFee],
   )
   const effectiveShipping = appliedPromo?.shippingAfter ?? shipping
   const discountAmount    = appliedPromo?.discount ?? 0
   const total = subtotal + (effectiveShipping ?? 0) - discountAmount
   const outOfZone =
     km != null && maxRadiusKm != null && km > maxRadiusKm
+  // Đã free ship (do subtotal HOẶC khoảng cách) → không hiện "còn X để free"
+  const shippingIsFree       = effectiveShipping === 0
   const freeShippingDelta    = freeThreshold != null ? freeThreshold - subtotal : 0
-  const freeShippingUnlocked = freeThreshold != null && subtotal >= freeThreshold
   const freeShippingProgress = freeThreshold != null
     ? Math.min(100, (subtotal / freeThreshold) * 100)
     : 0
@@ -782,32 +786,44 @@ export default function CheckoutPage() {
                   {/* Formula transparency (E): khách nhìn rõ vì sao có phí này */}
                   {shipping != null && km != null && shippingConfig && (
                     <div className="text-[11px] text-[#87867f]" style={{ lineHeight: 1.5 }}>
-                      {shipping === 0 && freeThreshold != null
-                        ? t('checkout.summary.shipping_free_reason')
-                            .replace('{{threshold}}', formatEuro(freeThreshold))
-                        : t('checkout.summary.shipping_formula')
-                            .replace('{{km}}',   km.toFixed(1).replace('.', locale === 'de' ? ',' : '.'))
-                            .replace('{{perKm}}', shippingConfig.perKm.toString().replace('.', locale === 'de' ? ',' : '.'))}
+                      {shipping === 0
+                        ? (freeThreshold != null && subtotal >= freeThreshold
+                            ? t('checkout.summary.shipping_free_reason')
+                                .replace('{{threshold}}', formatEuro(freeThreshold))
+                            : t('checkout.summary.shipping_free_distance')
+                                .replace('{{radius}}', shippingConfig.freeDeliveryRadiusKm.toString().replace('.', locale === 'de' ? ',' : '.')))
+                        : shippingConfig.feeMode === 'flat'
+                          ? t('checkout.summary.shipping_flat')
+                          : t('checkout.summary.shipping_formula')
+                              .replace('{{km}}',   km.toFixed(1).replace('.', locale === 'de' ? ',' : '.'))
+                              .replace('{{perKm}}', shippingConfig.perKm.toString().replace('.', locale === 'de' ? ',' : '.'))}
                     </div>
                   )}
                 </div>
 
-                <div className="mt-4">
-                  <div className="h-1 rounded-full bg-[#e8e6dc] overflow-hidden">
-                    <div
-                      className="h-full bg-[#c96442] transition-all duration-500"
-                      style={{ width: `${freeShippingProgress}%` }}
-                    />
+                {/* Nudge "còn X để free theo giá" — chỉ hiện khi CHƯA free và có ngưỡng subtotal */}
+                {freeThreshold != null && !shippingIsFree && (
+                  <div className="mt-4">
+                    <div className="h-1 rounded-full bg-[#e8e6dc] overflow-hidden">
+                      <div
+                        className="h-full bg-[#c96442] transition-all duration-500"
+                        style={{ width: `${freeShippingProgress}%` }}
+                      />
+                    </div>
+                    <div className="text-[11px] text-[#87867f] mt-1.5">
+                      {t('checkout.summary.free_shipping_progress').replace(
+                        '{{amount}}',
+                        formatEuro(Math.max(0, freeShippingDelta)),
+                      )}
+                    </div>
                   </div>
-                  <div className="text-[11px] text-[#87867f] mt-1.5">
-                    {freeShippingUnlocked
-                      ? t('checkout.summary.free_shipping_unlocked')
-                      : t('checkout.summary.free_shipping_progress').replace(
-                          '{{amount}}',
-                          formatEuro(Math.max(0, freeShippingDelta)),
-                        )}
+                )}
+                {/* Đã free ship → báo rõ */}
+                {shippingIsFree && (
+                  <div className="mt-4 text-[11px] text-[#4A5E2A] font-medium">
+                    {t('checkout.summary.free_shipping_unlocked')}
                   </div>
-                </div>
+                )}
               </div>
 
               <div className="pt-4 mt-4 border-t border-[#f0eee6]">

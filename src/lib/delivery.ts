@@ -9,21 +9,31 @@ export interface RouteResult {
   geometry: [number, number][] // [lat, lng] pairs
 }
 
+export type DeliveryFeeMode = 'per_km' | 'flat'
+
 /** Cấu hình tính phí — đẩy từ store_settings xuống qua useStoreSettings(). */
 export interface ShippingConfig {
-  /** € / km */
+  /** € / km (chỉ dùng khi feeMode='per_km') */
   perKm:             number
-  /** Subtotal threshold để miễn phí ship (null = không bao giờ free) */
+  /** Subtotal threshold để miễn phí ship (null = không bao giờ free theo giá) */
   freeShipThreshold: number | null
-  /** Phí ship base (cộng vào trước perKm) */
+  /** Phí ship base (cộng vào trước perKm, khi feeMode='per_km') */
   baseFee:           number
+  /** Bán kính miễn phí: distance < ngưỡng này → free (0 = tắt) */
+  freeDeliveryRadiusKm: number
+  /** Cách tính phí trên bán kính free */
+  feeMode:           DeliveryFeeMode
+  /** Phí cố định khi feeMode='flat' */
+  flatFee:           number
 }
 
 /**
- * Tính phí ship preview (BE sẽ recompute lúc submit để chốt chính xác).
- * Trả null nếu chưa có km. Trùng công thức với backend pricing.ts:
- *   subtotal ≥ threshold → 0
- *   else                  → baseFee + km * perKm  (round 2)
+ * Tính phí ship preview (BE recompute lúc submit để chốt). Trùng công thức
+ * backend pricing.ts (bỏ qua out-of-zone — checkout xử lý riêng):
+ *   subtotal ≥ threshold          → 0 (free theo giá)
+ *   distance < freeDeliveryRadius  → 0 (free theo khoảng cách)
+ *   flat                          → flatFee
+ *   per_km                        → baseFee + km * perKm
  */
 export function computeShipping(
   km:       number | null,
@@ -32,7 +42,8 @@ export function computeShipping(
 ): number | null {
   if (km == null || !cfg) return null
   if (cfg.freeShipThreshold !== null && subtotal >= cfg.freeShipThreshold) return 0
-  const raw = cfg.baseFee + km * cfg.perKm
+  if (cfg.freeDeliveryRadiusKm > 0 && km < cfg.freeDeliveryRadiusKm) return 0
+  const raw = cfg.feeMode === 'flat' ? cfg.flatFee : cfg.baseFee + km * cfg.perKm
   return Math.round(raw * 100) / 100
 }
 

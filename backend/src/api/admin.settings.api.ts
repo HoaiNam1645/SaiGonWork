@@ -62,11 +62,14 @@ const updateSchema = z.object({
   currency:      z.string().trim().length(3).toUpperCase().optional(),
   openHours:     openHoursSchema.optional(),
   delivery: z.object({
-    radiusKm:           z.number().min(0).max(999).optional(),
-    baseFee:            z.number().min(0).max(100_000).optional(),
-    perKm:              z.number().min(0).max(100_000).optional(),
-    freeShipThreshold:  z.number().min(0).max(100_000).nullable().optional(),
-    kitchenPrepMinutes: z.number().int().min(0).max(600).optional(),
+    radiusKm:             z.number().min(0).max(999).optional(),
+    baseFee:              z.number().min(0).max(100_000).optional(),
+    perKm:                z.number().min(0).max(100_000).optional(),
+    freeShipThreshold:    z.number().min(0).max(100_000).nullable().optional(),
+    freeDeliveryRadiusKm: z.number().min(0).max(999).optional(),
+    feeMode:              z.enum(['per_km', 'flat']).optional(),
+    flatFee:              z.number().min(0).max(100_000).optional(),
+    kitchenPrepMinutes:   z.number().int().min(0).max(600).optional(),
   }).optional(),
   payment: z.object({
     paypalEmail:     nullableEmail.optional(),
@@ -97,12 +100,15 @@ interface StoreRow {
   bankAccountName:    string | null
   bankAccountNo:      string | null
   bankName:           string | null
-  deliveryRadiusKm:   Prisma.Decimal
-  deliveryBaseFee:    Prisma.Decimal
-  deliveryPerKm:      Prisma.Decimal
-  freeShipThreshold:  Prisma.Decimal | null
-  kitchenPrepMinutes: number
-  routingProvider:    string
+  deliveryRadiusKm:     Prisma.Decimal
+  deliveryBaseFee:      Prisma.Decimal
+  deliveryPerKm:        Prisma.Decimal
+  freeShipThreshold:    Prisma.Decimal | null
+  freeDeliveryRadiusKm: Prisma.Decimal
+  deliveryFeeMode:      string
+  deliveryFlatFee:      Prisma.Decimal
+  kitchenPrepMinutes:   number
+  routingProvider:      string
   defaultCurrency:    string
   updatedAt:          Date
 }
@@ -120,12 +126,15 @@ function shape(s: StoreRow) {
     currency:      s.defaultCurrency,
     openHours:     shapeOpenHours(s.openHoursJson),
     delivery: {
-      radiusKm:           num(s.deliveryRadiusKm),
-      baseFee:            num(s.deliveryBaseFee),
-      perKm:              num(s.deliveryPerKm),
-      freeShipThreshold:  num(s.freeShipThreshold),
-      kitchenPrepMinutes: s.kitchenPrepMinutes,
-      routingProvider:    s.routingProvider,
+      radiusKm:             num(s.deliveryRadiusKm),
+      baseFee:              num(s.deliveryBaseFee),
+      perKm:                num(s.deliveryPerKm),
+      freeShipThreshold:    num(s.freeShipThreshold),
+      freeDeliveryRadiusKm: num(s.freeDeliveryRadiusKm),
+      feeMode:              s.deliveryFeeMode === 'flat' ? 'flat' : 'per_km',
+      flatFee:              num(s.deliveryFlatFee),
+      kitchenPrepMinutes:   s.kitchenPrepMinutes,
+      routingProvider:      s.routingProvider,
     },
     payment: {
       paypalEmail:     s.paypalEmail,
@@ -180,11 +189,14 @@ export async function update(req: Request, res: Response) {
   // --- delivery ---
   if (body.delivery) {
     const d = body.delivery
-    if (d.radiusKm           !== undefined) data.deliveryRadiusKm   = new Prisma.Decimal(d.radiusKm)
-    if (d.baseFee            !== undefined) data.deliveryBaseFee     = new Prisma.Decimal(d.baseFee)
-    if (d.perKm              !== undefined) data.deliveryPerKm       = new Prisma.Decimal(d.perKm)
-    if (d.freeShipThreshold  !== undefined) data.freeShipThreshold   = d.freeShipThreshold != null ? new Prisma.Decimal(d.freeShipThreshold) : null
-    if (d.kitchenPrepMinutes !== undefined) data.kitchenPrepMinutes  = d.kitchenPrepMinutes
+    if (d.radiusKm             !== undefined) data.deliveryRadiusKm     = new Prisma.Decimal(d.radiusKm)
+    if (d.baseFee              !== undefined) data.deliveryBaseFee       = new Prisma.Decimal(d.baseFee)
+    if (d.perKm                !== undefined) data.deliveryPerKm         = new Prisma.Decimal(d.perKm)
+    if (d.freeShipThreshold    !== undefined) data.freeShipThreshold     = d.freeShipThreshold != null ? new Prisma.Decimal(d.freeShipThreshold) : null
+    if (d.freeDeliveryRadiusKm !== undefined) data.freeDeliveryRadiusKm  = new Prisma.Decimal(d.freeDeliveryRadiusKm)
+    if (d.feeMode              !== undefined) data.deliveryFeeMode       = d.feeMode
+    if (d.flatFee              !== undefined) data.deliveryFlatFee       = new Prisma.Decimal(d.flatFee)
+    if (d.kitchenPrepMinutes   !== undefined) data.kitchenPrepMinutes    = d.kitchenPrepMinutes
   }
 
   // --- payment ---

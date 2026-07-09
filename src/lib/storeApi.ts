@@ -20,11 +20,14 @@ export interface StoreSettings {
   isOpen:        boolean
   closedMessage: string | null
   delivery: {
-    radiusKm:           number | null
-    baseFee:            number | null
-    perKm:              number | null
-    freeShipThreshold:  number | null
-    kitchenPrepMinutes: number
+    radiusKm:             number | null
+    baseFee:              number | null
+    perKm:                number | null
+    freeShipThreshold:    number | null
+    freeDeliveryRadiusKm: number | null
+    feeMode:              'per_km' | 'flat'
+    flatFee:              number | null
+    kitchenPrepMinutes:   number
   }
   payment: {
     methods:         ApiPaymentMethod[]

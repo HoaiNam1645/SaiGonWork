@@ -463,6 +463,11 @@ model StoreSettings {
   deliveryBaseFee      Decimal  @default(0) @map("delivery_base_fee") @db.Decimal(10, 2)
   deliveryPerKm        Decimal  @default(2.00) @map("delivery_per_km") @db.Decimal(10, 2)
   freeShipThreshold    Decimal? @default(25.00) @map("free_ship_threshold") @db.Decimal(10, 2)
+  // Bán kính miễn phí giao hàng: distance < ngưỡng này → free (0 = tắt)
+  freeDeliveryRadiusKm Decimal  @default(0) @map("free_delivery_radius_km") @db.Decimal(5, 2)
+  // Cách tính phí: 'per_km' (baseFee + km*perKm) | 'flat' (deliveryFlatFee cố định)
+  deliveryFeeMode      String   @default("per_km") @map("delivery_fee_mode") @db.VarChar(20)
+  deliveryFlatFee      Decimal  @default(0) @map("delivery_flat_fee") @db.Decimal(10, 2)
   kitchenPrepMinutes   Int      @default(25) @map("kitchen_prep_minutes")
   routingProvider      String   @default("osrm") @map("routing_provider") @db.VarChar(30)
 
