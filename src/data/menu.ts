@@ -141,8 +141,8 @@ export const restaurantInfo = {
   tagline: 'Authentische vietnamesische Küche — Ich Bin Da',
   description: 'Erleben Sie die authentischen Aromen Vietnams mitten in Stuttgart. Frische Zutaten, traditionelle Rezepte und herzliche Gastfreundschaft — das ist Sai Gon Wok.',
   hours: {
-    weekdays: 'Mo – Sa: 11:00 – 21:30 Uhr',
-    sunday: 'Sonntag: Geschlossen',
+    weekdays: 'Mo – So: 11:00 – 21:30 Uhr',
+    sunday: 'Lieferung: 11:00 – 23:00 Uhr',
   },
 }
 

@@ -106,8 +106,8 @@ export default function Hero() {
             <div className="relative order-first lg:order-last">
               <div className="relative aspect-[3/4] max-w-md mx-auto rounded-xl overflow-hidden shadow-2xl ring-1 ring-wood-dark/20">
                 <Image
-                  src="/saigon-wok-cover.png"
-                  alt="Sai Gon Wok Menu Cover - Chef Portrait"
+                  src="/saigon-wok-cover.jpg"
+                  alt="Sai Gon Wok Menü — Titelseite"
                   fill
                   priority
                   sizes="(max-width: 1024px) 90vw, 500px"
