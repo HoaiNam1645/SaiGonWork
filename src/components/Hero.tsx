@@ -117,7 +117,7 @@ export default function Hero() {
               {/* Stamp/badge */}
               <div className="absolute -top-3 -right-3 sm:-top-4 sm:-right-4 bg-amber text-white rounded-full w-20 h-20 sm:w-24 sm:h-24 flex flex-col items-center justify-center shadow-2xl rotate-[-12deg] border-4 border-parchment">
                 <span className="font-marker text-sm sm:text-base leading-none">{t('hero.since')}</span>
-                <span className="font-marker text-xl sm:text-2xl leading-none mt-1">2014</span>
+                <span className="font-marker text-xl sm:text-2xl leading-none mt-1">2026</span>
               </div>
             </div>
           </div>

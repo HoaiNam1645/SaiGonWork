@@ -46,7 +46,7 @@ export default function AboutSection() {
             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gold rounded-full w-32 h-32 flex items-center justify-center text-wood-dark font-display text-center shadow-2xl rotate-[-8deg]">
               <div>
                 <div className="text-2xl font-bold leading-none">{t('about.since')}</div>
-                <div className="text-3xl font-bold leading-none mt-1">2014</div>
+                <div className="text-3xl font-bold leading-none mt-1">2026</div>
               </div>
             </div>
           </div>
