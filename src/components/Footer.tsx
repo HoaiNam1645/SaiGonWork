@@ -3,8 +3,8 @@
 import { useMenuCategories } from '@/lib/menuApi'
 import { useI18n } from '@/i18n/I18nContext'
 import { useStoreSettings } from '@/lib/storeApi'
-import { STORE_FALLBACK } from '@/config/store'
-import { InstagramIcon, FacebookIcon, MapPinIcon, ClockIcon } from './Icons'
+import { STORE_FALLBACK, SOCIAL_LINKS, telHref } from '@/config/store'
+import { InstagramIcon, FacebookIcon, MapPinIcon, ClockIcon, PhoneIcon } from './Icons'
 
 export default function Footer() {
   const { t, tCategory } = useI18n()
@@ -12,8 +12,9 @@ export default function Footer() {
   const { store } = useStoreSettings()
   const year = new Date().getFullYear()
 
-  // Address từ DB (single string), fallback constants nếu chưa load.
+  // Address + phone từ DB (admin sửa được trong Settings), fallback constants nếu chưa load.
   const addressLine = store?.address ?? STORE_FALLBACK.address.fullLine
+  const phone       = store?.hotline ?? STORE_FALLBACK.phone
 
   return (
     <footer className="bg-wood-dark border-t border-gold/20 relative">
@@ -31,14 +32,18 @@ export default function Footer() {
             </p>
             <div className="flex items-center gap-3">
               <a
-                href="#"
+                href={SOCIAL_LINKS.instagram}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Instagram"
                 className="w-10 h-10 rounded-full border border-gold/25 hover:border-gold hover:bg-gold/10 text-parchment/70 hover:text-gold flex items-center justify-center transition-colors"
               >
                 <InstagramIcon className="w-4 h-4" />
               </a>
               <a
-                href="#"
+                href={SOCIAL_LINKS.facebook}
+                target="_blank"
+                rel="noopener noreferrer"
                 aria-label="Facebook"
                 className="w-10 h-10 rounded-full border border-gold/25 hover:border-gold hover:bg-gold/10 text-parchment/70 hover:text-gold flex items-center justify-center transition-colors"
               >
@@ -73,6 +78,12 @@ export default function Footer() {
               <li className="flex items-start gap-2.5">
                 <MapPinIcon className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
                 <span className="whitespace-pre-line">{addressLine}</span>
+              </li>
+              <li className="flex items-start gap-2.5">
+                <PhoneIcon className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />
+                <a href={telHref(phone)} className="hover:text-gold transition-colors">
+                  {phone}
+                </a>
               </li>
               <li className="flex items-start gap-2.5">
                 <ClockIcon className="w-4 h-4 text-gold mt-0.5 flex-shrink-0" />

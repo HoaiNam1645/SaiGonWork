@@ -32,7 +32,21 @@ export const STORE_FALLBACK = {
 
   cuisines:   ['Vietnamese', 'Asian'] as const,
   priceRange: '€€',
+
+  /** SĐT hiển thị — fallback khi store.hotline chưa load (nguồn động: DB). */
+  phone: '+49 711 241567',
 } as const
+
+/** Mạng xã hội chính thức — brand constants (không có trong DB). */
+export const SOCIAL_LINKS = {
+  instagram: 'https://www.instagram.com/sai.gon.wok',
+  facebook:  'https://www.facebook.com/profile.php?id=61589391457999',
+} as const
+
+/** tel: link từ số hiển thị (bỏ khoảng trắng/ký tự thừa, giữ +). */
+export function telHref(phone: string): string {
+  return `tel:${phone.replace(/[^+\d]/g, '')}`
+}
 
 /** Helper: tạo Google Maps link cho địa chỉ shop hiện tại (hoặc fallback). */
 export function mapsUrl(addressLine: string): string {

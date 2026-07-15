@@ -97,7 +97,7 @@ async function seedStoreSettings() {
     create: {
       id:                 1,
       name:               'Sài Gòn Wok',
-      hotline:            '+4971112345678',
+      hotline:            '+49 711 241567',
       email:              'contact@saigonwok.de',
       address:            'Kanalstraße 10, 70182 Stuttgart',
       lat:                48.7843,
