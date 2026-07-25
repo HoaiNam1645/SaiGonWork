@@ -61,7 +61,7 @@ const VAR_REIS_NUDEL = [
   { label: 'Knusprig Ente',                 labelEn: 'Crispy duck',                 priceDelta: 4 },
   { label: 'Rindfleisch',                   labelEn: 'Beef',                        priceDelta: 4 },
   { label: 'Garnelen',                      labelEn: 'Shrimp',                      priceDelta: 4 },
-  { label: 'Mix — Rind, Hähnchen, Garnelen', labelEn: 'Mix — beef, chicken, shrimp', priceDelta: 6 },
+  { label: 'Mix (Rind, Garnelen, Hähnchen)', labelEn: 'Mix (beef, shrimp, chicken)', priceDelta: 6 },
 ]
 
 /** Yaki Udon U1–U7: 12,00 / 14,00 / 17,00 */
@@ -87,25 +87,25 @@ export const MENU: CategorySeed[] = [
   {
     slug: 'vorspeisen', nameVi: 'Vorspeisen', nameEn: 'Starters', displayOrder: 1,
     dishes: [
-      { slug: 'wan-tan',            nameVi: 'Knusprig gebackene Wan-Tan',  descriptionVi: '5 Stk. — Gefüllte Teigtaschen mit süß-sauer Sauce', price: 4.50, imageUrl: IMG('wan-tan'), isFeatured: true },
-      { slug: 'gyoza',              nameVi: 'Gyoza',                       descriptionVi: '5 Stk. — Frittierte Teigtaschen mit Hähnchenfleisch- und Gemüsefüllung, serviert mit süß-saurem Dip', price: 4.50, imageUrl: IMG('gyoza') },
-      { slug: 'gyoza-veggie',       nameVi: 'Gyoza Veggie',                descriptionVi: '5 Stk. — Vegetarische Gyoza mit Gemüsefüllung', price: 4.50, imageUrl: IMG('gyoza-veggie') },
-      { slug: 'mini-rollen',        nameVi: 'Mini-Rollen',                 descriptionVi: '7 Stk. — Tofu, Karotten, Sojasprossen, Reisnudeln (vegetarisch)', price: 4.50, imageUrl: IMG('mini-rollen') },
-      { slug: 'nem-chay',           nameVi: 'Nem Chay',                    descriptionVi: '3 Stk. — Hausgemachte vietnamesische Frühlingsrollen, gefüllt mit Glasnudeln, China-Pilzen, Morcheln und Karotten, serviert mit süß-saurem Dip (vegane Füllung)', price: 4.50, imageUrl: IMG('nem-chay') },
-      { slug: 'edamame',            nameVi: 'Edamame',                     descriptionVi: 'Grüne Bohnen mit Meersalz', price: 4.50, imageUrl: IMG('edamame') },
-      { slug: 'pommes',             nameVi: 'Pommes Frites',               descriptionVi: 'Knusprige Pommes Frites', price: 4.50, imageUrl: IMG('pommes') },
-      { slug: 'ha-cao',             nameVi: 'Ha Cao',                      descriptionVi: 'Gedämpfte Teigtaschen mit Garnelenfüllung', price: 4.50, imageUrl: IMG('ha-cao') },
-      { slug: 'sommerrollen',       nameVi: 'Sommerrollen mit Salat',      descriptionVi: 'Reisnudeln, geröstete Schalotten, Gurke, Reispapier mit süß-sauer Soße', price: 4.50, imageUrl: IMG('sommerrollen'), variants: VAR3 },
-      { slug: 'gebratene-garnelen', nameVi: 'Gebratene Garnelen',          descriptionVi: '2 Stk. — Grüne Reisflöckchen, Garnelen, süß-sauer Soße', price: 6.50, imageUrl: IMG('gebratene-garnelen') },
-      { slug: 'vorspeise-platte',   nameVi: 'Gemischte Vorspeise-Platte',  descriptionVi: 'Eine Variation aus unseren Vorspeisen: 2 Stk. Sommerrollen · 2 Stk. Nem Chay · 2 Stk. Gebratene Garnelen · 5 Stk. Gyoza · 4 Stk. Wan-Tan', price: 15.90, imageUrl: IMG('vorspeise-platte'), isFeatured: true },
+      { slug: 'wan-tan',            nameVi: 'Knusprig gebackene Wan-Tan',  descriptionVi: '5 Stk. — Gefüllte Teigtaschen mit süß-sauer Sauce', price: 4.90, imageUrl: IMG('wan-tan'), isFeatured: true },
+      { slug: 'gyoza',              nameVi: 'Gyoza',                       descriptionVi: '5 Stk. — Frittierte Teigtaschen mit Hähnchenfleisch- und Gemüsefüllung, serviert mit süß-saurem Dip', price: 4.90, imageUrl: IMG('gyoza') },
+      { slug: 'gyoza-veggie',       nameVi: 'Gyoza Veggie',                descriptionVi: '5 Stk. — Vegetarische Gyoza mit Gemüsefüllung', price: 4.90, imageUrl: IMG('gyoza-veggie') },
+      { slug: 'mini-rollen',        nameVi: 'Mini-Rollen',                 descriptionVi: '7 Stk. — Tofu, Karotten, Sojasprossen, Reisnudeln (vegetarisch)', price: 4.90, imageUrl: IMG('mini-rollen') },
+      { slug: 'nem-chay',           nameVi: 'Nem Chay',                    descriptionVi: '3 Stk. — Hausgemachte vietnamesische Frühlingsrollen, gefüllt mit Glasnudeln, China-Pilzen, Morcheln und Karotten, serviert mit süß-saurem Dip (vegane Füllung)', price: 4.90, imageUrl: IMG('nem-chay') },
+      { slug: 'edamame',            nameVi: 'Edamame',                     descriptionVi: 'Grüne Bohnen mit Meersalz', price: 4.90, imageUrl: IMG('edamame') },
+      { slug: 'pommes',             nameVi: 'Pommes Frites',               descriptionVi: 'Knusprige Pommes Frites', price: 4.90, imageUrl: IMG('pommes') },
+      { slug: 'ha-cao',             nameVi: 'Ha Cao',                      descriptionVi: 'Gedämpfte Teigtaschen mit Garnelenfüllung', price: 4.90, imageUrl: IMG('ha-cao') },
+      { slug: 'sommerrollen',       nameVi: 'Sommerrollen mit Salat',      descriptionVi: 'Reisnudeln, geröstete Schalotten, Gurke, Reispapier mit süß-sauer Soße', price: 4.90, imageUrl: IMG('sommerrollen'), variants: VAR3 },
+      { slug: 'gebratene-garnelen', nameVi: 'Gebratene Garnelen',          descriptionVi: '2 Stk. — Grüne Reisflöckchen, Garnelen, süß-sauer Soße', price: 6.90, imageUrl: IMG('gebratene-garnelen') },
+      { slug: 'vorspeise-platte',   nameVi: 'Gemischte Vorspeise-Platte',  descriptionVi: 'Eine Variation aus unseren Vorspeisen: 2 Stk. Sommerrollen · 2 Stk. Nem Chay · 2 Stk. Gebratene Garnelen · 5 Stk. Gyoza · 4 Stk. Wan-Tan', price: 16.90, imageUrl: IMG('vorspeise-platte'), isFeatured: true },
     ],
   },
   {
     slug: 'suppen', nameVi: 'Suppen', nameEn: 'Soups', displayOrder: 2,
     dishes: [
-      { slug: 'peking-suppe', nameVi: 'Peking-Suppe',  descriptionVi: 'Sauer-scharf', price: 4.90, imageUrl: IMG('peking-suppe') },
-      { slug: 'wantan-suppe', nameVi: 'Wantan Suppe',  descriptionVi: '4 Stk. — Hähnchenfleisch, Garnelen, Zucchini, Brokkoli', price: 4.90, imageUrl: IMG('wantan-suppe') },
-      { slug: 'tom-yum',      nameVi: 'Tom Yum Suppe', descriptionVi: 'Tom Yum, Zucchini, Brokkoli, Karotten, Champignons', price: 4.90, imageUrl: IMG('tom-yum'), variants: VAR3 },
+      { slug: 'peking-suppe', nameVi: 'Peking-Suppe',  descriptionVi: 'Sauer-scharf', price: 5.90, imageUrl: IMG('peking-suppe') },
+      { slug: 'wantan-suppe', nameVi: 'Wantan Suppe',  descriptionVi: '4 Stk. — Hähnchenfleisch, Garnelen, Zucchini, Brokkoli', price: 5.90, imageUrl: IMG('wantan-suppe') },
+      { slug: 'tom-yum',      nameVi: 'Tom Yum Suppe', descriptionVi: 'Tom Yum, Zucchini, Brokkoli, Karotten, Champignons', price: 5.90, imageUrl: IMG('tom-yum'), variants: VAR3 },
     ],
   },
   {

@@ -55,7 +55,7 @@ export default function ContactSection() {
             <div className="space-y-2.5 text-wood/75">
               <div className="flex justify-between gap-4">
                 <span className="font-medium">{t('contact.hours.weekdays')}</span>
-                <span>11:00 – 21:30</span>
+                <span>11:00 – 22:00</span>
               </div>
               <div className="border-t border-gold/15 pt-2.5 flex justify-between gap-4">
                 <span className="font-medium">{t('contact.hours.sunday')}</span>

@@ -23,11 +23,11 @@ export const STORE_FALLBACK = {
     fullLine:   'Kanalstraße 10, 70182 Stuttgart',
   },
 
-  /** JSON-LD opening hours (Mon–Sat 11:00–21:30, Sun closed). */
+  /** JSON-LD opening hours (Mo–So 11:00–22:00 — theo note nhà hàng 07/2026). */
   openingHours: {
-    days:  ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'],
+    days:  ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'],
     opens: '11:00',
-    close: '21:30',
+    close: '22:00',
   },
 
   cuisines:   ['Vietnamese', 'Asian'] as const,
