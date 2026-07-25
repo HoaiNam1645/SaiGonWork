@@ -31,6 +31,11 @@ const schema = z.object({
   // Public URL (cho link verify trong email)
   PUBLIC_APP_URL: z.string().default('http://localhost:3000'),
 
+  // ----- Telegram notify (đơn hàng mới → group) -----
+  // Thiếu 1 trong 2 → tính năng tự tắt, không ảnh hưởng luồng đặt hàng.
+  TELEGRAM_BOT_TOKEN: z.string().default(''),
+  TELEGRAM_CHAT_ID:   z.string().default(''),
+
   // Anti-spam disposable email
   // Custom blacklist domains, ngăn cách dấu phẩy (vd "anawebs.com,foo.com")
   DISPOSABLE_EMAIL_BLACKLIST: z.string().default(''),

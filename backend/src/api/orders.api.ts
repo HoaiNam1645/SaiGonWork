@@ -23,6 +23,7 @@ import { type Locale } from '@/i18n'
 import { logAuditAsync } from '@/lib/auditLog'
 import { clientIp } from '@/lib/request'
 import { computeStoreStatus } from '@/lib/storeStatus'
+import { notifyTelegramNewOrder } from '@/lib/telegram'
 
 // =====================================================================
 // Schemas
@@ -620,6 +621,16 @@ export async function create(req: Request, res: Response) {
   } catch (e) {
     console.warn('[socket] emit order.created failed:', e)
   }
+
+  // Báo group Telegram (fire-and-forget — tự bỏ qua nếu env chưa cấu hình)
+  notifyTelegramNewOrder({
+    code:         order.code,
+    contactName:  order.contactName,
+    contactPhone: order.contactPhone,
+    total:        Number(order.total),
+    status:       order.status,
+    createdAt:    order.createdAt,
+  })
 
   // Persistent notification cho staff/admin (broadcast, userId=null)
   try {
