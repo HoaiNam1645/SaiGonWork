@@ -80,16 +80,15 @@ async function seedUsers() {
 // =====================================================================
 
 async function seedStoreSettings() {
-  // Mo–So 11:00–22:00 (chốt theo note nhà hàng 07/2026 — đóng cửa 22h).
-  // openHours gate đơn ONLINE.
+  // Giờ mở cửa 08/2026: Mo 12:30–22:30, Di–So 11:30–22:30. openHours gate đơn ONLINE.
   const openHours = {
-    mon: ['11:00', '22:00'],
-    tue: ['11:00', '22:00'],
-    wed: ['11:00', '22:00'],
-    thu: ['11:00', '22:00'],
-    fri: ['11:00', '22:00'],
-    sat: ['11:00', '22:00'],
-    sun: ['11:00', '22:00'],
+    mon: ['12:30', '22:30'],
+    tue: ['11:30', '22:30'],
+    wed: ['11:30', '22:30'],
+    thu: ['11:30', '22:30'],
+    fri: ['11:30', '22:30'],
+    sat: ['11:30', '22:30'],
+    sun: ['11:30', '22:30'],
   }
   await prisma.storeSettings.upsert({
     where:  { id: 1 },

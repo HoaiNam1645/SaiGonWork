@@ -97,14 +97,12 @@ const restaurantJsonLd = {
     postalCode:       STORE_FALLBACK.address.postalCode,
     addressCountry:   STORE_FALLBACK.address.country,
   },
-  openingHoursSpecification: [
-    {
-      '@type':   'OpeningHoursSpecification',
-      dayOfWeek: STORE_FALLBACK.openingHours.days,
-      opens:     STORE_FALLBACK.openingHours.opens,
-      closes:    STORE_FALLBACK.openingHours.close,
-    },
-  ],
+  openingHoursSpecification: STORE_FALLBACK.openingHours.map(w => ({
+    '@type':   'OpeningHoursSpecification',
+    dayOfWeek: w.days,
+    opens:     w.opens,
+    closes:    w.close,
+  })),
   servesCuisine: STORE_FALLBACK.cuisines,
   priceRange:    STORE_FALLBACK.priceRange,
   url:           STORE_FALLBACK.url,
