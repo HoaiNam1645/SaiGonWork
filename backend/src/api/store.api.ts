@@ -43,7 +43,8 @@ export async function info(_req: Request, res: Response) {
       methods: [
         'cash_on_delivery',
         s.paypalEmail || s.paypalMeLink ? 'paypal'        : null,
-        s.bankQrImageUrl                ? 'bank_qr_image' : null,
+        // Bank transfer khả dụng khi có SỐ TÀI KHOẢN (QR chỉ là tùy chọn hiển thị)
+        s.bankQrImageUrl || s.bankAccountNo ? 'bank_qr_image' : null,
       ].filter(Boolean),
       paypalMeLink:    s.paypalMeLink,
       bankQrImageUrl:  s.bankQrImageUrl,
