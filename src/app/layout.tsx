@@ -63,11 +63,14 @@ export const metadata: Metadata = {
   creator: 'Sai Gon Wok Stuttgart',
   publisher: 'Sai Gon Wok Stuttgart',
   formatDetection: { telephone: true, email: true, address: true },
-  metadataBase: new URL('https://saigonwok-stuttgart.de'),
+  metadataBase: new URL('https://saigonwok.com'),
+  // Canonical — "ép" URL chính thức cho SEO (site chạy trên nhiều domain/IP,
+  // Google chỉ index saigonwok.com)
+  alternates: { canonical: '/' },
   openGraph: {
     type: 'website',
     locale: 'de_DE',
-    url: 'https://saigonwok-stuttgart.de',
+    url: 'https://saigonwok.com',
     siteName: 'Sai Gon Wok Stuttgart',
     title: 'Sai Gon Wok Stuttgart — Authentische vietnamesische Küche',
     description:

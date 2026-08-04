@@ -11,7 +11,7 @@ export const STORE_FALLBACK = {
   name:    'Sai Gon Wok',
   city:    'Stuttgart',
   country: 'Germany',
-  url:     'https://saigonwok-stuttgart.de',
+  url:     'https://saigonwok.com',
 
   // Địa chỉ — chia thành phần riêng để dùng cho JSON-LD; render thì join lại.
   address: {
