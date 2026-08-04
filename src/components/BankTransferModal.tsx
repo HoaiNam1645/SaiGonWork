@@ -1,7 +1,6 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import Image from 'next/image'
 import { useI18n } from '@/i18n/I18nContext'
 import { formatEuro } from '@/lib/delivery'
 import type { StoreSettings } from '@/lib/storeApi'
@@ -31,8 +30,8 @@ export default function BankTransferModal({
   const isDe = locale === 'de'
 
   const L = {
-    title:        isDe ? 'Überweisung per QR' : 'Bank transfer (QR)',
-    stepHint1:    isDe ? 'Schritt 1/2 — QR scannen & überweisen' : 'Step 1/2 — Scan QR & transfer',
+    title:        isDe ? 'Banküberweisung' : 'Bank transfer',
+    stepHint1:    isDe ? 'Schritt 1/2 — Daten kopieren & überweisen' : 'Step 1/2 — Copy details & transfer',
     stepHint2:    isDe ? 'Schritt 2/2 — Beleg hochladen' : 'Step 2/2 — Upload receipt',
     bankName:     isDe ? 'Bank' : 'Bank',
     accountName:  isDe ? 'Kontoinhaber' : 'Account holder',
@@ -50,14 +49,10 @@ export default function BankTransferModal({
     back:         isDe ? '← Zurück' : '← Back',
     confirm:      isDe ? 'Bestätigen & bestellen' : 'Confirm & place order',
     submitting:   isDe ? 'Wird verarbeitet…' : 'Submitting…',
-    noQr:         isDe ? 'Kein QR-Code konfiguriert. Bitte gemäß den Kontodaten unten überweisen.'
-                       : 'No QR configured. Please transfer using the account details below.',
     proofRequired: isDe ? 'Bitte lade einen Überweisungsbeleg hoch.' : 'Please upload a transfer receipt.',
     tooLarge:     isDe ? 'Datei zu groß (max. 8 MB).' : 'File too large (max 8 MB).',
     badType:      isDe ? 'Nur Bilddateien (JPG, PNG, WebP).' : 'Images only (JPG, PNG, WebP).',
     uploadFailed: isDe ? 'Upload fehlgeschlagen. Bitte erneut versuchen.' : 'Upload failed. Please try again.',
-    copy:         isDe ? 'Kopieren' : 'Copy',
-    copied:       isDe ? 'Kopiert' : 'Copied',
   }
 
   const [step, setStep] = useState<1 | 2>(1)
@@ -164,48 +159,27 @@ export default function BankTransferModal({
           {step === 1 ? L.stepHint1 : L.stepHint2}
         </div>
 
-        {/* STEP 1: QR + bank info */}
+        {/* STEP 1: thông tin CK — copy từng dòng bằng icon (không dùng QR) */}
         {step === 1 && (
           <div className="space-y-4">
-            {bank.bankQrImageUrl ? (
-              <div className="flex justify-center">
-                <div
-                  className="rounded-xl bg-white p-3"
-                  style={{ boxShadow: '0 0 0 1px #e8e6dc' }}
-                >
-                  <div className="relative w-[220px] h-[220px]">
-                    <Image
-                      src={bank.bankQrImageUrl}
-                      alt="QR"
-                      fill
-                      sizes="220px"
-                      className="object-contain"
-                      unoptimized
-                    />
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <div
-                className="rounded-xl px-4 py-3 text-[13px]"
-                style={{ backgroundColor: '#fdf6e3', boxShadow: '0 0 0 1px #ead9b5', color: '#7a5b0a' }}
-              >
-                {L.noQr}
-              </div>
-            )}
-
             <div
               className="rounded-xl bg-white p-4 text-[13px]"
               style={{ boxShadow: '0 0 0 1px #e8e6dc' }}
             >
               <InfoRow label={L.bankName}    value={bank.bankName} />
-              <InfoRow label={L.accountName} value={bank.bankAccountName} />
+              <InfoRow
+                label={L.accountName}
+                value={bank.bankAccountName}
+                copyable
+                onCopy={(v) => copy(v, 'name')}
+                copiedNow={copiedKey === 'name'}
+              />
               <InfoRow
                 label={L.accountNo}
                 value={bank.bankAccountNo}
                 copyable
-                onCopy={(v) => copy(v, 'acc')}
-                copied={copiedKey === 'acc' ? L.copied : L.copy}
+                onCopy={(v) => copy(v.replace(/\s+/g, ''), 'acc')}
+                copiedNow={copiedKey === 'acc'}
               />
               <InfoRow
                 label={L.amount}
@@ -213,7 +187,7 @@ export default function BankTransferModal({
                 accent
                 copyable
                 onCopy={() => copy(String(amount.toFixed(2)), 'amt')}
-                copied={copiedKey === 'amt' ? L.copied : L.copy}
+                copiedNow={copiedKey === 'amt'}
               />
               {transferContent && (
                 <InfoRow
@@ -222,7 +196,7 @@ export default function BankTransferModal({
                   accent
                   copyable
                   onCopy={(v) => copy(v, 'ref')}
-                  copied={copiedKey === 'ref' ? L.copied : L.copy}
+                  copiedNow={copiedKey === 'ref'}
                   last
                 />
               )}
@@ -349,14 +323,15 @@ export default function BankTransferModal({
 }
 
 function InfoRow({
-  label, value, accent, copyable, onCopy, copied, last,
+  label, value, accent, copyable, onCopy, copiedNow, last,
 }: {
   label:    string
   value:    string | null
   accent?:  boolean
   copyable?: boolean
   onCopy?:  (v: string) => void
-  copied?:  string
+  /** true trong ~1.5s sau khi copy → hiện icon check xanh */
+  copiedNow?: boolean
   last?:    boolean
 }) {
   return (
@@ -380,10 +355,21 @@ function InfoRow({
           <button
             type="button"
             onClick={() => onCopy?.(value)}
-            className="text-[11px] text-[#c96442] hover:text-[#d97757] uppercase font-medium px-1.5 py-0.5 rounded-md transition-colors"
-            style={{ letterSpacing: '0.4px' }}
+            aria-label="Kopieren"
+            className={`shrink-0 inline-flex items-center justify-center w-7 h-7 rounded-md transition-colors ${
+              copiedNow ? 'text-[#4a7c2a]' : 'text-[#c96442] hover:text-[#d97757] hover:bg-[#faf9f5]'
+            }`}
           >
-            {copied}
+            {copiedNow ? (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg className="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
           </button>
         )}
       </span>

@@ -458,32 +458,19 @@ function PaymentBlock({ instr }: { instr: PaymentInstructions }) {
           {t('order_detail.payment.bank.scan')}
         </p>
 
-        <div className="grid sm:grid-cols-[200px_1fr] gap-5 items-start">
-          {instr.bankQrImageUrl && (
-            <div className="relative aspect-square rounded-xl overflow-hidden bg-white border border-[#e8e6dc]">
-              <Image
-                src={instr.bankQrImageUrl}
-                alt="Bank QR"
-                fill
-                sizes="200px"
-                className="object-contain p-2"
-              />
-            </div>
+        <dl className="space-y-2.5 text-[13px]">
+          {instr.bankAccountName && (
+            <Item label={t('order_detail.payment.recipient')} value={instr.bankAccountName} copyValue={instr.bankAccountName} />
           )}
-          <dl className="space-y-2.5 text-[13px]">
-            {instr.bankAccountName && (
-              <Item label={t('order_detail.payment.recipient')} value={instr.bankAccountName} />
-            )}
-            {instr.bankAccountNo && (
-              <Item label={t('order_detail.payment.iban')} value={instr.bankAccountNo} mono />
-            )}
-            {instr.bankName && (
-              <Item label={t('order_detail.payment.bank_name')} value={instr.bankName} />
-            )}
-            <Item label={t('order_detail.payment.reference')} value={instr.reference} mono accent />
-            <Item label={t('order_detail.payment.amount')}    value={`${instr.amount.toFixed(2).replace('.', ',')} €`} accent />
-          </dl>
-        </div>
+          {instr.bankAccountNo && (
+            <Item label={t('order_detail.payment.iban')} value={instr.bankAccountNo} mono copyValue={instr.bankAccountNo.replace(/\s+/g, '')} />
+          )}
+          {instr.bankName && (
+            <Item label={t('order_detail.payment.bank_name')} value={instr.bankName} />
+          )}
+          <Item label={t('order_detail.payment.reference')} value={instr.reference} mono accent copyValue={instr.reference} />
+          <Item label={t('order_detail.payment.amount')}    value={`${instr.amount.toFixed(2).replace('.', ',')} €`} accent copyValue={instr.amount.toFixed(2)} />
+        </dl>
       </div>
     )
   }
@@ -539,18 +526,48 @@ function PaymentBlock({ instr }: { instr: PaymentInstructions }) {
 }
 
 function Item({
-  label, value, italic, mono, accent,
-}: { label: string; value: string; italic?: boolean; mono?: boolean; accent?: boolean }) {
+  label, value, italic, mono, accent, copyValue,
+}: { label: string; value: string; italic?: boolean; mono?: boolean; accent?: boolean; copyValue?: string }) {
+  const [copied, setCopied] = useState(false)
+  async function doCopy() {
+    if (!copyValue) return
+    try {
+      await navigator.clipboard.writeText(copyValue)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch { /* ignore */ }
+  }
   return (
     <div>
       <dt className="text-[10px] uppercase text-[#87867f] font-medium" style={{ letterSpacing: '0.5px' }}>
         {label}
       </dt>
       <dd
-        className={`mt-0.5 ${italic ? 'text-[#5e5d59] italic' : accent ? 'text-[#c96442] font-medium' : 'text-[#141413]'} ${mono ? 'font-mono' : ''}`}
+        className={`mt-0.5 flex items-center gap-1.5 ${italic ? 'text-[#5e5d59] italic' : accent ? 'text-[#c96442] font-medium' : 'text-[#141413]'} ${mono ? 'font-mono' : ''}`}
         style={{ lineHeight: 1.5 }}
       >
-        {value}
+        <span className="min-w-0 break-all">{value}</span>
+        {copyValue && (
+          <button
+            type="button"
+            onClick={doCopy}
+            aria-label="Kopieren"
+            className={`shrink-0 inline-flex items-center justify-center w-6 h-6 rounded-md transition-colors ${
+              copied ? 'text-[#4a7c2a]' : 'text-[#c96442] hover:text-[#d97757] hover:bg-white'
+            }`}
+          >
+            {copied ? (
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            ) : (
+              <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="9" y="9" width="13" height="13" rx="2" ry="2" />
+                <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1" />
+              </svg>
+            )}
+          </button>
+        )}
       </dd>
     </div>
   )

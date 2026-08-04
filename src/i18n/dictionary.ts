@@ -270,10 +270,10 @@ const de: Dict = {
   'checkout.payment.cash_desc': 'Bei Erhalt der Bestellung bezahlen',
   'checkout.payment.cash_hint':
     'Zahlen Sie direkt beim Fahrer – bar, per Überweisung oder mit Karte.',
-  'checkout.payment.bank': 'Banküberweisung (QR)',
-  'checkout.payment.bank_desc': 'QR-Code scannen und mit Ihrer Bank-App bezahlen',
+  'checkout.payment.bank': 'Banküberweisung',
+  'checkout.payment.bank_desc': 'Per Online-Banking überweisen',
   'checkout.payment.bank_hint':
-    'Nach Bestellaufgabe erhalten Sie einen QR-Code (GiroCode) mit Empfänger und Betrag.',
+    'Im nächsten Schritt sehen Sie unsere Bankdaten (Empfänger, IBAN, Betrag) zum Kopieren.',
 
   'checkout.summary.title': 'Ihre Bestellung',
   'checkout.summary.subtotal': 'Zwischensumme',
@@ -355,7 +355,7 @@ const de: Dict = {
   'order_detail.no_access':         'Sie haben keinen Zugriff auf diese Bestellung.',
   'order_detail.payment.title':     'Zahlungsanweisungen',
   'order_detail.payment.bank.title': 'Banküberweisung',
-  'order_detail.payment.bank.scan': 'QR-Code scannen oder Daten manuell eingeben:',
+  'order_detail.payment.bank.scan': 'Überweisen Sie den Betrag mit folgenden Daten:',
   'order_detail.payment.recipient': 'Empfänger',
   'order_detail.payment.iban':      'IBAN',
   'order_detail.payment.bank_name': 'Bank',
@@ -1355,10 +1355,10 @@ const en: Dict = {
   'checkout.payment.cash_desc': 'Pay when your order arrives',
   'checkout.payment.cash_hint':
     'Pay the driver directly — in cash, by bank transfer, or by card.',
-  'checkout.payment.bank': 'Bank transfer (QR)',
-  'checkout.payment.bank_desc': 'Scan a QR code and pay with your banking app',
+  'checkout.payment.bank': 'Bank transfer',
+  'checkout.payment.bank_desc': 'Pay by bank transfer from your banking app',
   'checkout.payment.bank_hint':
-    "After placing the order you'll receive a QR code (GiroCode) with the recipient and amount.",
+    "In the next step you'll see our bank details (recipient, IBAN, amount) to copy.",
 
   'checkout.summary.title': 'Your order',
   'checkout.summary.subtotal': 'Subtotal',
@@ -1439,7 +1439,7 @@ const en: Dict = {
   'order_detail.no_access':         'You do not have access to this order.',
   'order_detail.payment.title':     'Payment instructions',
   'order_detail.payment.bank.title': 'Bank transfer',
-  'order_detail.payment.bank.scan': 'Scan the QR code or enter details manually:',
+  'order_detail.payment.bank.scan': 'Transfer the amount using these details:',
   'order_detail.payment.recipient': 'Recipient',
   'order_detail.payment.iban':      'IBAN',
   'order_detail.payment.bank_name': 'Bank',
