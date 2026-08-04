@@ -25,7 +25,11 @@ const createSchema = z.object({
   descriptionEn: z.string().trim().max(2000).nullable().optional(),
   price:         z.number().nonnegative(),
   currency:      z.string().length(3).default('EUR'),
-  imageUrl:      z.string().trim().max(500).url().nullable().optional(),
+  // Nhận URL tuyệt đối (https://…) HOẶC path tương đối ("/menu/x.jpg", "/dishes/x.jpg"
+  // — ảnh upload từ admin UI được serve same-origin).
+  imageUrl:      z.string().trim().max(500)
+                   .regex(/^(https?:\/\/\S+|\/[\w\-./]+)$/, 'validation.invalid_url')
+                   .nullable().optional(),
   isAvailable:   z.boolean().default(true),
   isFeatured:    z.boolean().default(false),
   prepTimeMin:   z.number().int().min(0).nullable().optional(),

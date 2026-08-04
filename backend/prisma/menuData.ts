@@ -139,6 +139,9 @@ export const MENU: CategorySeed[] = [
       { slug: 'tom-rang-bo-toi',   nameVi: 'Tom Rang Bo Toi',            descriptionVi: 'Garnelen in Knoblauchbutter. Mit Salat, Gurke und Reis', price: 15.90, imageUrl: IMG('tom-rang-bo-toi') },
       { slug: 'rau-xao-thap-cam',  nameVi: 'Rau Xao Thap Cam (vegan)',   descriptionVi: 'Gemischtes gebratenes Gemüse — Brokkoli, Karotten, Paprika, Zucchini, Zwiebel, Champignons', price: 12.90, imageUrl: IMG('rau-xao-thap-cam') },
       { slug: 'curry-tofu',        nameVi: 'Curry Tofu (vegan)',         descriptionVi: 'Tofu mit Zitronengras und Chili in gelber Curry-Soße (wenig scharf). Mit Gemüse', price: 13.90, imageUrl: IMG('curry-tofu') },
+      // 34–35 bổ sung 08/2026 — chưa có ảnh, admin upload qua UI (/dishes/…)
+      { slug: 'bun-rieu',          nameVi: 'Bun Rieu (leicht scharf)',   descriptionVi: 'Vietnamesische Suppe mit Krabbenfleisch — Reisnudeln, frittierter Tofu, Tomaten, Rind, Frühlingszwiebeln, Zitronengras, Basilikum', price: 18.90, imageUrl: null },
+      { slug: 'bun-bo-hue',        nameVi: 'Bun Bo Hue (leicht scharf)', descriptionVi: 'Würzige Rindfleischsuppe — Reisnudeln, Rind, Frühlingszwiebeln, Zitronengras, Basilikum', price: 18.90, imageUrl: null },
     ],
   },
 ]

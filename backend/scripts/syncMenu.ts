@@ -35,7 +35,37 @@ async function main() {
         where:   { slug: d.slug },
         include: { options: { include: { values: { orderBy: { displayOrder: 'asc' } } } } },
       })
-      if (!dbDish) { warnings.push(`dish "${d.slug}" không có trong DB — bỏ qua`); continue }
+
+      // Món mới trong menuData chưa có trong DB → tạo luôn (kèm variants)
+      if (!dbDish) {
+        const created = await prisma.dish.create({
+          data: {
+            categoryId:    dbCat.id,
+            slug:          d.slug,
+            nameVi:        d.nameVi,
+            descriptionVi: d.descriptionVi,
+            price:         d.price,
+            imageUrl:      d.imageUrl,
+            isFeatured:    d.isFeatured ?? false,
+            isAvailable:   true,
+            displayOrder:  i + 1,
+          },
+        })
+        if (d.variants?.length) {
+          const opt = await prisma.dishOption.create({
+            data: { dishId: created.id, nameVi: 'Auswahl', nameEn: 'Selection', type: 'single', isRequired: true, displayOrder: 1 },
+          })
+          for (let j = 0; j < d.variants.length; j++) {
+            const v = d.variants[j]
+            await prisma.dishOptionValue.create({
+              data: { dishOptionId: opt.id, labelVi: v.label, labelEn: v.labelEn, priceDelta: v.priceDelta, displayOrder: j + 1 },
+            })
+          }
+        }
+        console.log(`  + tạo mới dish "${d.slug}"`)
+        updated++
+        continue
+      }
 
       await prisma.dish.update({
         where: { id: dbDish.id },

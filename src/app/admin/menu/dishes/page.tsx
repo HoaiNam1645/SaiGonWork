@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import AdminPageHeader from '@/components/admin/AdminPageHeader'
 import { Table, TableBody, TableCell, TableHeader, TableRow } from '@/components/admin/ui/Table'
 import SearchInput from '@/components/admin/ui/SearchInput'
@@ -520,9 +520,32 @@ function EditDishModal({
   const [isFeatured,    setIsFeatured]    = useState(dish?.isFeatured    ?? false)
   const [busy, setBusy] = useState(false)
   const [err,  setErr]  = useState<string | null>(null)
+  const [uploading, setUploading] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const isCreate = !dish
   const valid = !!categoryId && slug.length >= 2 && nameVi.length >= 2 && Number(price) >= 0
+
+  // Upload ảnh từ máy → /upload/dish-image (route handler FE, chỉ admin) → điền URL
+  async function uploadImage(f: File) {
+    setUploading(true); setErr(null)
+    try {
+      const fd = new FormData()
+      fd.append('file', f)
+      const res = await fetch('/upload/dish-image', { method: 'POST', body: fd })
+      if (!res.ok) {
+        const code = (await res.json().catch(() => null)) as { error?: string } | null
+        throw new Error(code?.error === 'FILE_TOO_LARGE' ? t('admin.dish.upload.too_large') : t('admin.dish.upload.failed'))
+      }
+      const data = (await res.json()) as { url: string }
+      setImageUrl(data.url)
+    } catch (e) {
+      setErr(e instanceof Error ? e.message : t('admin.dish.upload.failed'))
+    } finally {
+      setUploading(false)
+      if (fileInputRef.current) fileInputRef.current.value = ''
+    }
+  }
 
   async function save() {
     setBusy(true); setErr(null)
@@ -602,7 +625,56 @@ function EditDishModal({
           </Field>
         </div>
         <Field label={t('admin.dish.field.image')}>
-          <TextInput value={imageUrl} onChange={setImageUrl} placeholder="https://…" />
+          <div className="flex items-start gap-3">
+            {/* Preview */}
+            <div className="w-16 h-16 rounded-lg border border-gray-200 bg-gray-50 overflow-hidden flex items-center justify-center shrink-0">
+              {imageUrl.trim() ? (
+                // eslint-disable-next-line @next/next/no-img-element
+                <img src={imageUrl} alt="" className="w-full h-full object-cover" />
+              ) : (
+                <svg className="w-6 h-6 text-gray-300" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" />
+                  <circle cx="8.5" cy="8.5" r="1.5" />
+                  <path d="M21 15l-5-5L5 21" />
+                </svg>
+              )}
+            </div>
+            <div className="flex-1 space-y-2">
+              <TextInput value={imageUrl} onChange={setImageUrl} placeholder="https://… hoặc /dishes/…" />
+              <div className="flex items-center gap-2">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  className="hidden"
+                  onChange={e => { const f = e.target.files?.[0]; if (f) void uploadImage(f) }}
+                />
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  disabled={uploading || busy}
+                  className="inline-flex items-center gap-1.5 text-xs font-medium px-3 py-1.5 rounded-lg border border-gray-200 text-gray-700 hover:bg-gray-50 disabled:opacity-60 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  {uploading ? t('admin.dish.upload.uploading') : t('admin.dish.upload.button')}
+                </button>
+                {imageUrl.trim() && (
+                  <button
+                    type="button"
+                    onClick={() => setImageUrl('')}
+                    disabled={uploading || busy}
+                    className="text-xs text-gray-500 hover:text-error-600 disabled:opacity-60 transition-colors"
+                  >
+                    {t('admin.dish.upload.remove')}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
         </Field>
         <div className="grid grid-cols-4 gap-3">
           <Field label={`${t('admin.dish.field.price')} (€)`}>

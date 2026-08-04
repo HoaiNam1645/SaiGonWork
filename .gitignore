@@ -45,3 +45,7 @@ free-nextjs-admin-dashboard-main
 # Bank transfer proof uploads (runtime) — keep dir, ignore contents
 /public/banking/*
 !/public/banking/.gitkeep
+
+# Dish image uploads (runtime) — keep dir, ignore contents
+/public/dishes/*
+!/public/dishes/.gitkeep
